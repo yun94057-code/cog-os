@@ -48,6 +48,7 @@ header .actions button{background:var(--border);border:none;color:var(--muted);p
 <header>
   <h1>🧠 Cognitive OS</h1>
   <div class="actions">
+    <span id="keyStatus" style="font-size:10px;color:var(--muted);margin-right:4px"></span>
     <button onclick="showSettings()">⚙️</button>
     <button onclick="clearChat()">🗑</button>
   </div>
@@ -116,6 +117,12 @@ let apiKey = localStorage.getItem("cogos_key") || "";
 let model = localStorage.getItem("cogos_model") || "deepseek-chat";
 let isRecording = false;
 let recognition = null;
+
+function updateKeyStatus() {
+  const el = document.getElementById("keyStatus");
+  if (el) el.textContent = apiKey ? "🔑" : "";
+}
+setTimeout(updateKeyStatus, 100);
 
 // ==================== UI ====================
 const chat = document.getElementById("chat");
@@ -314,6 +321,20 @@ function saveSettings() {
 }
 
 // ==================== INIT ====================
+// 支持从 URL hash 读取 Key（格式: #key=sk-xxx）
+(function(){
+  const hash = window.location.hash.slice(1);
+  const params = new URLSearchParams(hash);
+  const hashKey = params.get("key");
+  if (hashKey && hashKey.startsWith("sk-")) {
+    apiKey = hashKey;
+    model = params.get("model") || model;
+    localStorage.setItem("cogos_key", apiKey);
+    localStorage.setItem("cogos_model", model);
+    // 清除 URL 中的 key，避免泄露
+    history.replaceState(null, "", window.location.pathname);
+  }
+})();
 if (!apiKey) showSettings();
 </script>
 </body>
