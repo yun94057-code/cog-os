@@ -41,22 +41,14 @@ header .actions button{background:var(--border);border:none;color:var(--muted);p
 .modal-content .btn-secondary{background:var(--border);color:#ccc}
 .file-upload{display:none}
 .hint{font-size:11px;color:var(--muted);margin-top:-8px;margin-bottom:12px}
+<script src="https://lib.baomitu.com/mammoth/1.8.0/mammoth.browser.min.js"></script>
 <script>
-// 加载 mammoth.js，多 CDN 容错
-(function(){
-  var urls = [
-    "https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js",
-    "https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js",
-  ];
+// 百度 CDN 备用
+if (typeof mammoth === "undefined") {
   var s = document.createElement("script");
-  function tryLoad(i) {
-    if (i >= urls.length) { console.warn("mammoth.js load failed"); return; }
-    s.src = urls[i];
-    s.onerror = function(){ tryLoad(i+1); };
-    document.head.appendChild(s);
-  }
-  tryLoad(0);
-})();
+  s.src = "https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js";
+  document.head.appendChild(s);
+}
 </script>
 </style>
 </head>
@@ -308,9 +300,9 @@ async function handleFile(input) {
     let text;
     try {
       const ext = file.name.split(".").pop().toLowerCase();
-      if (ext === "docx") {
+      if (ext === "docx" || ext === "doc") {
         if (typeof mammoth === "undefined") {
-          text = "[无法解析 .docx：解析库加载失败，请用 Safari/Chrome 打开重试，或将文档内容复制粘贴到对话框]";
+          text = "[无法解析 " + file.name + "：解析库加载失败，请刷新页面重试]";
         } else {
           addSystem(`📄 正在解析 ${file.name}...`);
           const arrayBuffer = await file.arrayBuffer();
@@ -333,7 +325,8 @@ async function handleFile(input) {
         }
       }
     } catch(e) {
-      text = "[无法读取: " + file.name + " - " + e.message + "]";
+      text = "[读取失败: " + file.name + "｜" + e.message + "]";
+      addSystem("⚠️ 读取失败: " + e.message.slice(0,50));
     }
     const preview = text.length > 4000 ? text.slice(0,4000) + "\n...(已截断)" : text;
     addMsg("user", `📎 ${file.name}\n${preview}`);
