@@ -41,15 +41,8 @@ header .actions button{background:var(--border);border:none;color:var(--muted);p
 .modal-content .btn-secondary{background:var(--border);color:#ccc}
 .file-upload{display:none}
 .hint{font-size:11px;color:var(--muted);margin-top:-8px;margin-bottom:12px}
-<script src="https://lib.baomitu.com/mammoth/1.8.0/mammoth.browser.min.js"></script>
-<script>
-// 百度 CDN 备用
-if (typeof mammoth === "undefined") {
-  var s = document.createElement("script");
-  s.src = "https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js";
-  document.head.appendChild(s);
-}
-</script>
+
+
 </style>
 </head>
 <body>
@@ -294,24 +287,121 @@ function toggleVoice() {
   recognition.start();
 }
 
+
+// ==================== BUILT-IN DOCX PARSER ====================
+// 纯 JS 解析 DOCX（不依赖任何外部库）
+async function parseDocxText(arrayBuffer) {
+  // DOCX 是 ZIP 文件，手动解压 word/document.xml
+  const u8 = new Uint8Array(arrayBuffer);
+  
+  // 查找 End of Central Directory (EOCD) signature 0x06054b50
+  function findEOCD(data) {
+    for (let i = data.length - 22; i >= 0; i--) {
+      if (data[i] === 0x50 && data[i+1] === 0x4b && data[i+2] === 0x05 && data[i+3] === 0x06) {
+        return i;
+      }
+    }
+    return -1;
+  }
+  
+  const eocdPos = findEOCD(u8);
+  if (eocdPos < 0) throw new Error("不是有效的DOCX文件");
+  
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const cdOffset = dv.getUint32(eocdPos + 16, true);
+  const cdSize = dv.getUint32(eocdPos + 12, true);
+  const totalEntries = dv.getUint16(eocdPos + 10, true);
+  
+  // 遍历 Central Directory 找 word/document.xml
+  let docXmlOffset = -1, docXmlSize = 0, docXmlCompressed = 0;
+  let pos = cdOffset;
+  
+  for (let i = 0; i < totalEntries; i++) {
+    const sig = dv.getUint32(pos, true);
+    if (sig !== 0x02014b50) break;
+    
+    const method = dv.getUint16(pos + 10, true);
+    const compressedSize = dv.getUint32(pos + 20, true);
+    const fileNameLen = dv.getUint16(pos + 28, true);
+    const extraLen = dv.getUint16(pos + 30, true);
+    const commentLen = dv.getUint16(pos + 32, true);
+    const localHeaderOffset = dv.getUint32(pos + 42, true);
+    
+    // 读文件名
+    const nameBytes = u8.slice(pos + 46, pos + 46 + fileNameLen);
+    const name = new TextDecoder().decode(nameBytes);
+    
+    if (name === "word/document.xml") {
+      // 跳到 Local File Header
+      const lhPos = localHeaderOffset;
+      const lhNameLen = dv.getUint16(lhPos + 26, true);
+      const lhExtraLen = dv.getUint16(lhPos + 28, true);
+      docXmlOffset = lhPos + 30 + lhNameLen + lhExtraLen;
+      docXmlSize = compressedSize;
+      docXmlCompressed = method;
+      break;
+    }
+    
+    pos += 46 + fileNameLen + extraLen + commentLen;
+  }
+  
+  if (docXmlOffset < 0) throw new Error("DOCX中未找到word/document.xml");
+  
+  let xmlBytes = u8.slice(docXmlOffset, docXmlOffset + docXmlSize);
+  
+  // 如果是 deflate 压缩的，用浏览器原生解压
+  if (docXmlCompressed === 8) {
+    const ds = new DecompressionStream("deflate");
+    const writer = ds.writable.getWriter();
+    writer.write(xmlBytes);
+    writer.close();
+    const result = await new Response(ds.readable).arrayBuffer();
+    xmlBytes = new Uint8Array(result);
+  }
+  
+  const xml = new TextDecoder().decode(xmlBytes);
+  
+  // 提取 <w:t> 标签中的文本，按段落分组
+  const paragraphs = [];
+  const pRegex = /<w:p[ >]/g;
+  const tRegex = /<w:t[^>]*>([^<]*)<\/w:t>/g;
+  
+  let pMatch, lastIndex = 0;
+  while ((pMatch = pRegex.exec(xml)) !== null) {
+    let paraText = "";
+    const pStart = pMatch.index;
+    const pEnd = xml.indexOf("</w:p>", pStart);
+    if (pEnd < 0) continue;
+    
+    const pContent = xml.slice(pStart, pEnd);
+    let tMatch;
+    tRegex.lastIndex = 0;
+    while ((tMatch = tRegex.exec(pContent)) !== null) {
+      paraText += tMatch[1];
+    }
+    if (paraText.trim()) paragraphs.push(paraText.trim());
+  }
+  
+  return paragraphs.join("\n\n") || "[文档为空或格式异常]";
+}
+
 // ==================== FILE UPLOAD ====================
 async function handleFile(input) {
   for (const file of input.files) {
     let text;
     try {
       const ext = file.name.split(".").pop().toLowerCase();
-      if (ext === "docx" || ext === "doc") {
-        if (typeof mammoth === "undefined") {
-          text = "[无法解析 " + file.name + "：解析库加载失败，请刷新页面重试]";
-        } else {
-          addSystem(`📄 正在解析 ${file.name}...`);
+      if (ext === "docx") {
+        try {
+          addSystem("📄 正在解析 " + file.name + "...");
           const arrayBuffer = await file.arrayBuffer();
-          const result = await mammoth.extractRawText({arrayBuffer});
-          text = result.value;
-          if (result.messages.length) {
-            text += "\n\n[转换备注: " + result.messages.join("; ") + "]";
-          }
+          text = await parseDocxText(arrayBuffer);
+        } catch(e) {
+          text = "[DOCX解析失败: " + e.message + " - 请将内容复制粘贴到对话框]";
         }
+      } else if (ext === "doc") {
+        text = "[.doc 旧格式不支持，请用 Word 另存为 .docx 或 .txt 后上传]";
+      } else if (false) {
       } else if (ext === "pdf") {
         addSystem("⚠️ PDF暂不支持，请复制内容到对话框");
         text = "[PDF文件: " + file.name + " - 请将文字内容粘贴到对话框中]";
