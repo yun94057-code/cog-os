@@ -41,6 +41,7 @@ header .actions button{background:var(--border);border:none;color:var(--muted);p
 .modal-content .btn-secondary{background:var(--border);color:#ccc}
 .file-upload{display:none}
 .hint{font-size:11px;color:var(--muted);margin-top:-8px;margin-bottom:12px}
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 </style>
 </head>
 <body>
@@ -288,18 +289,33 @@ async function handleFile(input) {
   for (const file of input.files) {
     let text;
     try {
-      if (file.type === "application/pdf") {
-        addSystem("⚠️ PDF需要浏览器支持，正在尝试读取...");
-        text = "[PDF文件: " + file.name + " - 请将内容粘贴到对话框中]";
-      } else {
+      const ext = file.name.split(".").pop().toLowerCase();
+      if (ext === "docx") {
+        addSystem(`📄 正在解析 ${file.name}...`);
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({arrayBuffer});
+        text = result.value;
+        if (result.messages.length) {
+          text += "\n\n[转换备注: " + result.messages.join("; ") + "]";
+        }
+      } else if (ext === "pdf") {
+        addSystem("⚠️ PDF暂不支持，请复制内容到对话框");
+        text = "[PDF文件: " + file.name + " - 请将文字内容粘贴到对话框中]";
+      } else if (["txt","md","json","csv","html","xml","yaml","yml"].includes(ext)) {
         text = await file.text();
+      } else {
+        text = await file.text(); // 尝试直接读取
+        // 如果看起来像乱码，提示用户
+        if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text.slice(0,100))) {
+          text = "[不支持的文件格式: " + file.name + " - 请转为 .txt 或 .md 后上传]";
+        }
       }
-    } catch {
-      text = "[无法读取: " + file.name + "]";
+    } catch(e) {
+      text = "[无法读取: " + file.name + " - " + e.message + "]";
     }
     const preview = text.length > 4000 ? text.slice(0,4000) + "\n...(已截断)" : text;
     addMsg("user", `📎 ${file.name}\n${preview}`);
-    messages.push({role:"user", content:`以下是我上传的文档「${file.name}」的内容：\n\n${text.slice(0,10000)}`});
+    messages.push({role:"user", content:`以下是我上传的文档「${file.name}」的内容：\n\n${text.slice(0,12000)}`});
   }
   input.files = null;
 }
