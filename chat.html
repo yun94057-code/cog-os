@@ -118,7 +118,43 @@ let messages = [];
 let apiKey = localStorage.getItem("cogos_key") || "";
 let model = localStorage.getItem("cogos_model") || "deepseek-chat";
 let isRecording = false;
+
 let recognition = null;
+var chatLoaded = false;
+
+function saveChat() {
+  try {
+    var save = messages.slice(-50); // keep last 50 messages
+    localStorage.setItem("cogos_chat", JSON.stringify(save));
+  } catch(e) {}
+}
+
+function loadChat() {
+  try {
+    var raw = localStorage.getItem("cogos_chat");
+    if (!raw) return;
+    var saved = JSON.parse(raw);
+    if (!Array.isArray(saved)) return;
+    messages = saved;
+    chat.innerHTML = "";
+    for (var i = 0; i < messages.length; i++) {
+      var m = messages[i];
+      var role = m.role === "user" ? "user" : "ai";
+      addMsgRaw(role, m.content);
+    }
+    addSystem("📂 已恢复上次对话（" + messages.length + " 条）");
+    chatLoaded = true;
+  } catch(e) {}
+}
+
+function addMsgRaw(role, text) {
+  var div = document.createElement("div");
+  div.className = "msg " + role;
+  var now = new Date().toLocaleTimeString("zh-CN", {hour:"2-digit",minute:"2-digit"});
+  div.innerHTML = text + '<div class="time">' + now + '</div>';
+  chat.appendChild(div);
+}
+
 
 function updateKeyStatus() {
   const el = document.getElementById("keyStatus");
@@ -152,6 +188,7 @@ function clearChat() {
   if (confirm("清空对话记录？")) {
     chat.innerHTML = '<div class="msg system">对话已清空。</div>';
     messages = [];
+    localStorage.removeItem("cogos_chat");
   }
 }
 
@@ -163,6 +200,7 @@ async function send() {
 
   addMsg("user", text);
   messages.push({role:"user", content:text});
+  saveChat();
   input.value = "";
   sendBtn.disabled = true;
   const thinking = addThinking();
@@ -185,6 +223,7 @@ async function send() {
       const reply = data.choices[0].message.content;
       addMsg("ai", reply);
       messages.push({role:"assistant", content:reply});
+    saveChat();
     }
   } catch(e) {
     thinking.remove();
@@ -457,6 +496,8 @@ function saveSettings() {
 })();
 // 强制刷新缓存（版本号递增）
 var COG_VERSION = "3";
+loadChat();
+setTimeout(function(){ chat.scrollTop = chat.scrollHeight; }, 300);
 if (!apiKey) showSettings();
 </script>
 </body>
