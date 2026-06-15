@@ -41,7 +41,23 @@ header .actions button{background:var(--border);border:none;color:var(--muted);p
 .modal-content .btn-secondary{background:var(--border);color:#ccc}
 .file-upload{display:none}
 .hint{font-size:11px;color:var(--muted);margin-top:-8px;margin-bottom:12px}
-<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<script>
+// 加载 mammoth.js，多 CDN 容错
+(function(){
+  var urls = [
+    "https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js",
+    "https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js",
+  ];
+  var s = document.createElement("script");
+  function tryLoad(i) {
+    if (i >= urls.length) { console.warn("mammoth.js load failed"); return; }
+    s.src = urls[i];
+    s.onerror = function(){ tryLoad(i+1); };
+    document.head.appendChild(s);
+  }
+  tryLoad(0);
+})();
+</script>
 </style>
 </head>
 <body>
@@ -223,16 +239,17 @@ function toggleVoice() {
   const btn = document.getElementById("voiceBtn");
   if (isRecording) { 
     isRecording = false;
-    recognition?.stop(); 
+    recognition?.abort(); 
     btn.classList.remove("recording");
     btn.textContent = "🎤 语音";
     return; 
   }
-  if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
-    addSystem("⚠️ 你的浏览器不支持语音输入");
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    input.focus();
+    addSystem("💡 vivo浏览器不支持语音，请安装 Chrome 浏览器打开");
     return;
   }
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SR();
   recognition.lang = "zh-CN";
   recognition.interimResults = true;
@@ -269,11 +286,12 @@ function toggleVoice() {
   
   recognition.onerror = (e) => {
     if (e.error === "aborted" || e.error === "no-speech") {
-      // 静默处理，用户主动停止或无语音
     } else if (e.error === "not-allowed") {
       addSystem("⚠️ 请允许麦克风权限后重试");
+    } else if (e.error === "network") {
+      addSystem("⚠️ 语音需要网络连接");
     } else {
-      addSystem("⚠️ 语音识别失败，请用文字输入");
+      addSystem("⚠️ 语音失败(" + e.error + ")，请用 Chrome 浏览器打开");
     }
     isRecording = false;
     btn.classList.remove("recording");
@@ -291,12 +309,16 @@ async function handleFile(input) {
     try {
       const ext = file.name.split(".").pop().toLowerCase();
       if (ext === "docx") {
-        addSystem(`📄 正在解析 ${file.name}...`);
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({arrayBuffer});
-        text = result.value;
-        if (result.messages.length) {
-          text += "\n\n[转换备注: " + result.messages.join("; ") + "]";
+        if (typeof mammoth === "undefined") {
+          text = "[无法解析 .docx：解析库加载失败，请用 Safari/Chrome 打开重试，或将文档内容复制粘贴到对话框]";
+        } else {
+          addSystem(`📄 正在解析 ${file.name}...`);
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({arrayBuffer});
+          text = result.value;
+          if (result.messages.length) {
+            text += "\n\n[转换备注: " + result.messages.join("; ") + "]";
+          }
         }
       } else if (ext === "pdf") {
         addSystem("⚠️ PDF暂不支持，请复制内容到对话框");
@@ -351,6 +373,8 @@ function saveSettings() {
     history.replaceState(null, "", window.location.pathname);
   }
 })();
+// 强制刷新缓存（版本号递增）
+var COG_VERSION = "3";
 if (!apiKey) showSettings();
 </script>
 </body>
