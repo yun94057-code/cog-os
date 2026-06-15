@@ -213,22 +213,66 @@ function doDailyLog() {
 // ==================== VOICE ====================
 function toggleVoice() {
   const btn = document.getElementById("voiceBtn");
-  if (isRecording) { recognition?.stop(); return; }
+  if (isRecording) { 
+    isRecording = false;
+    recognition?.stop(); 
+    btn.classList.remove("recording");
+    btn.textContent = "🎤 语音";
+    return; 
+  }
   if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
-    addSystem("⚠️ 你的浏览器不支持语音输入（Safari请用桌面版Chrome）");
+    addSystem("⚠️ 你的浏览器不支持语音输入");
     return;
   }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SR();
   recognition.lang = "zh-CN";
   recognition.interimResults = true;
-  recognition.continuous = true;
-  recognition.onstart = () => { isRecording = true; btn.classList.add("recording"); btn.textContent = "🔴 停止"; };
-  recognition.onend = () => { isRecording = false; btn.classList.remove("recording"); btn.textContent = "🎤 语音"; };
-  recognition.onresult = (e) => {
-    input.value = Array.from(e.results).map(r => r[0].transcript).join("");
+  recognition.continuous = false;
+  
+  let finalText = "";
+  
+  recognition.onstart = () => { 
+    isRecording = true; 
+    btn.classList.add("recording"); 
+    btn.textContent = "🔴 说完点我"; 
   };
-  recognition.onerror = (e) => { addSystem("⚠️ 语音错误: " + e.error); };
+  
+  recognition.onresult = (e) => {
+    let interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) {
+        finalText += e.results[i][0].transcript;
+      } else {
+        interim += e.results[i][0].transcript;
+      }
+    }
+    input.value = finalText + interim;
+  };
+  
+  recognition.onend = () => {
+    isRecording = false;
+    btn.classList.remove("recording");
+    btn.textContent = "🎤 语音";
+    if (finalText.trim()) {
+      setTimeout(() => { input.value = finalText.trim(); }, 100);
+    }
+  };
+  
+  recognition.onerror = (e) => {
+    if (e.error === "aborted" || e.error === "no-speech") {
+      // 静默处理，用户主动停止或无语音
+    } else if (e.error === "not-allowed") {
+      addSystem("⚠️ 请允许麦克风权限后重试");
+    } else {
+      addSystem("⚠️ 语音识别失败，请用文字输入");
+    }
+    isRecording = false;
+    btn.classList.remove("recording");
+    btn.textContent = "🎤 语音";
+    if (finalText.trim()) input.value = finalText.trim();
+  };
+  
   recognition.start();
 }
 
