@@ -351,7 +351,7 @@ async function parseDocxText(arrayBuffer) {
   
   // 如果是 deflate 压缩的，用浏览器原生解压
   if (docXmlCompressed === 8) {
-    const ds = new DecompressionStream("deflate");
+    const ds = new DecompressionStream("deflate-raw");
     const writer = ds.writable.getWriter();
     writer.write(xmlBytes);
     writer.close();
