@@ -90,6 +90,15 @@ header {
 }
 .msg.user .time { color:rgba(255,255,255,.7); }
 
+.msg.voice {
+  align-self:flex-end; background:var(--user-gradient); color:#fff;
+  border-radius: var(--radius-md) var(--radius-md) 4px var(--radius-md);
+  padding:10px 14px; box-shadow: 0 2px 12px rgba(99,102,241,.25);
+}
+.msg.voice audio { display:block; max-width:200px; height:32px; }
+.msg.voice audio::-webkit-media-controls-panel { background:rgba(255,255,255,.95); }
+.msg.voice .time { color:rgba(255,255,255,.7); margin-top:4px; }
+
 .msg.ai {
   align-self:flex-start; background:var(--surface);
   border:1px solid var(--border); border-radius: var(--radius-md) var(--radius-md) var(--radius-md) 4px;
@@ -703,54 +712,105 @@ function doDailyLog() {
 }
 
 // ==================== VOICE ====================
+let mediaRecorder = null;
+let audioChunks   = [];
+
 function toggleVoice() {
   const btn = document.getElementById("voiceBtn");
-  if (isRecording) {
-    isRecording = false; recognition?.abort();
-    btn.classList.remove("recording"); btn.textContent = "🎤"; return;
-  }
+
+  // 优先使用 SpeechRecognition（桌面 Chrome/Edge）
   const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
-  if (!SR) {
-    // 移动端/WebView 大概率不支持，给出明确提示
-    const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
-    addSystem(isMobile
-      ? "⚠️ 当前环境不支持语音输入。请使用 Chrome 或 Safari 浏览器直接打开"
-      : "⚠️ 当前浏览器不支持语音输入，请使用 Chrome、Edge 或 Safari"
-    );
-    shakeElement(btn);
+  if (SR) {
+    if (isRecording) { isRecording=false; recognition?.abort(); btn.classList.remove("recording"); btn.textContent="🎤"; return; }
+    recognition = new SR();
+    recognition.lang = "zh-CN"; recognition.interimResults = true; recognition.continuous = false;
+    let finalText = "";
+    recognition.onstart  = () => { isRecording=true; btn.classList.add("recording"); btn.textContent="🔴"; };
+    recognition.onresult = (e) => {
+      let interim = "";
+      for (let i=e.resultIndex;i<e.results.length;i++) {
+        if (e.results[i].isFinal) finalText+=e.results[i][0].transcript;
+        else interim+=e.results[i][0].transcript;
+      }
+      input.value = finalText+interim;
+      input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,140)+"px";
+    };
+    recognition.onend = () => {
+      isRecording=false; btn.classList.remove("recording"); btn.textContent="🎤";
+      if (finalText.trim()) { input.value=finalText.trim(); input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,140)+"px"; }
+    };
+    recognition.onerror = (e) => {
+      btn.classList.remove("recording"); btn.textContent="🎤"; isRecording=false;
+      if (e.error==="not-allowed") addSystem("⚠️ 请允许麦克风权限后重试");
+      else if (e.error==="network") addSystem("⚠️ 语音识别需要网络连接");
+      else if (e.error!=="aborted" && e.error!=="no-speech") addSystem("⚠️ 语音识别失败："+e.error);
+    };
+    recognition.start();
     return;
   }
-  recognition = new SR();
-  recognition.lang = "zh-CN"; recognition.interimResults = true; recognition.continuous = false;
-  let finalText = "";
 
-  recognition.onstart = () => { isRecording=true; btn.classList.add("recording"); btn.textContent="🔴"; };
-  recognition.onresult = (e) => {
-    let interim = "";
-    for (let i=e.resultIndex;i<e.results.length;i++) {
-      if (e.results[i].isFinal) finalText+=e.results[i][0].transcript;
-      else interim+=e.results[i][0].transcript;
-    }
-    input.value = finalText+interim;
-    input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,140)+"px";
-  };
-  recognition.onend = () => {
-    isRecording=false; btn.classList.remove("recording"); btn.textContent="🎤";
-    if (finalText.trim()) { input.value=finalText.trim(); input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,140)+"px"; }
-  };
-  recognition.onerror = (e) => {
-    btn.classList.remove("recording"); btn.textContent="🎤"; isRecording=false;
-    if (e.error==="not-allowed") addSystem("⚠️ 请允许麦克风权限后重试");
-    else if (e.error==="network") addSystem("⚠️ 语音识别需要网络连接");
-    else if (e.error==="aborted" || e.error==="no-speech") { /* 用户手动停止或无语音，正常 */ }
-    else addSystem("⚠️ 语音识别失败："+e.error+"。请确保使用 HTTPS 并允许麦克风");
-  };
-  recognition.start();
+  // 回退：MediaRecorder 录音（移动端/WebView）
+  if (isRecording) {
+    // 停止录音
+    isRecording = false;
+    btn.classList.remove("recording"); btn.textContent="🎤";
+    if (mediaRecorder && mediaRecorder.state==="recording") mediaRecorder.stop();
+    return;
+  }
+  startMediaRecord(btn);
+}
+
+async function startMediaRecord(btn) {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")?"audio/webm;codecs=opus":"audio/webm" });
+    audioChunks = [];
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size>0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t=>t.stop());
+      // 录音结束 → 显示音频消息
+      const blob = new Blob(audioChunks, { type: "audio/webm" });
+      const url  = URL.createObjectURL(blob);
+      addAudioMessage(url, "user");
+      // 也写入 messages 数组
+      messages.push({ role:"user", content:"[🎤 语音消息]", time:new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"}), audio:url });
+      localStorage.setItem("cogos_chat", JSON.stringify(messages));
+    };
+    mediaRecorder.onerror = () => { addSystem("⚠️ 录音失败"); resetVoiceBtn(btn); };
+    mediaRecorder.start();
+    isRecording = true; btn.classList.add("recording"); btn.textContent="🔴";
+    // 最长录 60 秒
+    setTimeout(() => { if (isRecording && mediaRecorder?.state==="recording") { mediaRecorder.stop(); isRecording=false; btn.classList.remove("recording"); btn.textContent="🎤"; } }, 60000);
+  } catch(e) {
+    if (e.name==="NotAllowedError") addSystem("⚠️ 请允许麦克风权限后重试");
+    else addSystem("⚠️ 无法启动录音："+e.message);
+    resetVoiceBtn(btn);
+  }
+}
+
+function resetVoiceBtn(btn) { isRecording=false; btn.classList.remove("recording"); btn.textContent="🎤"; }
+
+function addAudioMessage(url, role) {
+  const div = document.createElement("div");
+  div.className = "msg voice";
+  const audio = document.createElement("audio");
+  audio.controls = true; audio.src = url;
+  audio.preload = "metadata";
+  const timeEl = document.createElement("div");
+  timeEl.className = "time";
+  timeEl.textContent = new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});
+  div.appendChild(audio);
+  div.appendChild(timeEl);
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
 }
 
 function shakeElement(el) {
   el.style.animation = "none";
   el.offsetHeight; // reflow
+  el.style.animation = "shake 0.4s ease-out";
+  setTimeout(() => el.style.animation = "", 400);
+}
   el.style.animation = "shake 0.4s ease-out";
   setTimeout(() => el.style.animation = "", 400);
 }
