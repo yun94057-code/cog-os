@@ -1,0 +1,8 @@
+node_modules
+data
+.git
+.gitignore
+*.bak
+*.md
+chat.html
+.DS_Store

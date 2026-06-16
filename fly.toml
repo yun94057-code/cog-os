@@ -1,0 +1,21 @@
+app = "cog-os"
+primary_region = "nrt"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3456"
+
+[[mounts]]
+  source      = "cogos_data"
+  destination = "/app/data"
+
+[http_service]
+  internal_port = 3456
+  force_https   = true
+
+  [[http_service.checks]]
+    path     = "/api/health"
+    interval = "10s"
+    timeout  = "3s"
