@@ -560,11 +560,10 @@ function maybeDateDivider() {
 
 // ==================== PERSISTENCE ====================
 function saveChatLocal() {
-  // 清理：音频消息的 blob URL 刷新后失效，保存时标记
+  // 清理：音频消息的 blob URL 刷新后失效，保留标记
   const clean = messages.slice(-100).map(m => {
     if (m.audio && m.audio.startsWith("blob:")) {
-      const { audio, ...rest } = m;
-      return rest; // 去掉 blob URL，保留 content 和时间
+      return { ...m, audio: true }; // 保留标记，去掉无效 blob URL
     }
     return m;
   });
@@ -581,12 +580,18 @@ function loadChat() {
     chat.innerHTML = "";
     for (const m of messages) {
       maybeDateDivider();
-      // 音频消息：blob URL 已失效，显示占位符
+      // 音频消息：显示占位符（blob URL 刷新后失效）
       if (m.audio) {
         const div = document.createElement("div");
         div.className = "msg voice";
-        div.innerHTML = '<span style="font-size:13px;opacity:.8">🎤 语音消息</span>'+
-          (m.time?'<span class="time">'+m.time+'</span>':'');
+        // 如果 audio 是有效 URL（非 true 标记），渲染播放器
+        if (typeof m.audio === "string" && m.audio.startsWith("http")) {
+          div.innerHTML = '<audio controls src="'+m.audio+'" style="max-width:200px;height:32px"></audio>'+
+            (m.time?'<span class="time">'+m.time+'</span>':'');
+        } else {
+          div.innerHTML = '<span style="font-size:13px;opacity:.8">🎤 语音消息</span>'+
+            (m.time?'<span class="time">'+m.time+'</span>':'');
+        }
         chat.appendChild(div);
         continue;
       }
