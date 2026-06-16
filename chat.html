@@ -3,96 +3,383 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>🧠 Cognitive OS — Brice的数字分身</title>
+<title>🧠 Cognitive OS — Brice 的数字分身</title>
 <style>
-:root{--bg:#0f0f0f;--surface:#1a1a1a;--border:#2a2a2a;--text:#e0e0e0;--muted:#888;--accent:#2563eb;--user-bubble:#2563eb;--ai-bubble:#1e1e1e}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);height:100dvh;display:flex;flex-direction:column;overscroll-behavior:none}
-header{background:var(--surface);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0}
-header h1{font-size:16px;font-weight:600}
-header .actions{display:flex;gap:8px}
-header .actions button{background:var(--border);border:none;color:var(--muted);padding:6px 10px;border-radius:6px;font-size:12px;cursor:pointer}
-#chat{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch}
-.msg{max-width:88%;padding:10px 14px;border-radius:18px;font-size:14px;line-height:1.65;white-space:pre-wrap;word-break:break-word;animation:fadeIn .2s ease}
-.msg.user{align-self:flex-end;background:var(--user-bubble);color:#fff;border-bottom-right-radius:4px}
-.msg.ai{align-self:flex-start;background:var(--ai-bubble);border:1px solid var(--border);border-bottom-left-radius:4px}
-.msg.system{align-self:center;color:var(--muted);font-size:12px;text-align:center;max-width:100%;background:transparent;padding:6px}
-.msg .time{font-size:10px;color:var(--muted);margin-top:3px}
-.msg.user .time{color:#a0c4ff}
-.toolbar{display:flex;gap:8px;padding:8px 16px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0;overflow-x:auto}
-.toolbar button{background:var(--border);border:none;color:#ccc;padding:7px 12px;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px;flex-shrink:0}
-.toolbar button:active{background:#444}
-.toolbar button.recording{background:#dc2626;color:#fff;animation:pulse 1s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
-.input-area{display:flex;padding:8px 16px max(16px,env(safe-area-inset-bottom));gap:8px;background:var(--surface);flex-shrink:0}
-.input-area textarea{flex:1;background:var(--border);border:1px solid #3a3a3a;border-radius:12px;padding:10px 14px;color:var(--text);font-size:14px;resize:none;max-height:120px;font-family:inherit;outline:none;-webkit-appearance:none}
-.input-area textarea:focus{border-color:var(--accent)}
-.input-area button{background:var(--accent);border:none;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;cursor:pointer;font-weight:600;white-space:nowrap}
-.input-area button:disabled{background:#3a3a3a;color:#666}
-.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);z-index:100;align-items:flex-end;justify-content:center}
-.modal.show{display:flex}
-.modal-content{background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;padding:24px 20px;width:100%;max-width:500px;max-height:80vh;overflow-y:auto}
-.modal-content h3{margin-bottom:16px;font-size:17px}
-.modal-content label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
-.modal-content input,.modal-content select{width:100%;background:var(--border);border:1px solid #3a3a3a;border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;margin-bottom:12px;-webkit-appearance:none}
-.modal-content .btn-row{display:flex;gap:8px;margin-top:16px}
-.modal-content .btn-row button{flex:1;padding:10px;border-radius:8px;font-size:14px;cursor:pointer;border:none;font-weight:600}
-.modal-content .btn-primary{background:var(--accent);color:#fff}
-.modal-content .btn-secondary{background:var(--border);color:#ccc}
-.file-upload{display:none}
-.hint{font-size:11px;color:var(--muted);margin-top:-8px;margin-bottom:12px}
+/* ========== DESIGN TOKENS ========== */
+:root {
+  --bg: #f8fafc; --surface: #ffffff; --border: #e2e8f0;
+  --text: #0f172a; --text-secondary: #475569; --muted: #94a3b8;
+  --accent: #6366f1; --accent-light: #eef2ff;
+  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --user-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.06);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,.08);
+  --radius-sm: 10px; --radius-md: 16px; --radius-lg: 20px; --radius-xl: 24px;
+  --danger: #ef4444; --success: #10b981; --warning: #f59e0b;
+}
 
+* { margin:0; padding:0; box-sizing:border-box; }
 
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: var(--bg); color: var(--text);
+  height: 100dvh; display: flex; flex-direction: column;
+  overflow: hidden; -webkit-font-smoothing: antialiased;
+}
+
+/* ========== HEADER ========== */
+header {
+  background: var(--surface); padding: 14px 20px;
+  display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0; z-index: 10;
+}
+.header-avatar {
+  width: 38px; height: 38px; border-radius: 12px;
+  background: var(--accent-gradient);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(99,102,241,.3);
+}
+.header-info { flex:1; min-width:0; }
+.header-info h1 { font-size:15px; font-weight:600; color:var(--text); line-height:1.2; }
+.header-status {
+  font-size:11px; color:var(--success); display:flex; align-items:center; gap:4px;
+}
+.header-status::before {
+  content:""; display:inline-block; width:6px; height:6px;
+  border-radius:50%; background:var(--success); box-shadow: 0 0 0 2px rgba(16,185,129,.2);
+}
+.header-actions { display:flex; gap:6px; }
+.header-actions button {
+  width:34px; height:34px; border-radius:10px; border:1px solid var(--border);
+  background:var(--surface); color:var(--text-secondary); font-size:15px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition: all .15s;
+}
+.header-actions button:hover { background:var(--accent-light); border-color:var(--accent); color:var(--accent); }
+.header-actions button.danger:hover { background:#fef2f2; border-color:var(--danger); color:var(--danger); }
+
+/* ========== CHAT AREA ========== */
+#chat {
+  flex:1; overflow-y:auto; padding:20px;
+  display:flex; flex-direction:column; gap:6px; scroll-behavior:smooth;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,.04), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(139,92,246,.03), transparent);
+}
+#chat::-webkit-scrollbar { width:4px; }
+#chat::-webkit-scrollbar-track { background:transparent; }
+#chat::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+
+.date-divider {
+  align-self:center; font-size:11px; color:var(--muted);
+  background:var(--surface); padding:4px 14px; border-radius:12px;
+  border:1px solid var(--border); margin:8px 0; letter-spacing:.5px;
+}
+
+.msg {
+  max-width:80%; padding:12px 16px; font-size:14px; line-height:1.7;
+  animation: msgIn .3s cubic-bezier(.16,1,.3,1); position:relative;
+}
+@keyframes msgIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+.msg.user {
+  align-self:flex-end; background:var(--user-gradient); color:#fff;
+  border-radius: var(--radius-md) var(--radius-md) 4px var(--radius-md);
+  box-shadow: 0 2px 12px rgba(99,102,241,.25);
+}
+.msg.user .time { color:rgba(255,255,255,.7); }
+
+.msg.ai {
+  align-self:flex-start; background:var(--surface);
+  border:1px solid var(--border); border-radius: var(--radius-md) var(--radius-md) var(--radius-md) 4px;
+  box-shadow: var(--shadow-sm);
+}
+.msg.ai .time { color:var(--muted); }
+
+.msg.system {
+  align-self:center; color:var(--muted); font-size:12px;
+  text-align:center; max-width:100%; background:transparent; padding:4px 12px;
+}
+
+.msg .time { font-size:10px; margin-top:4px; display:block; }
+
+/* Reasoning */
+.msg.reasoning-block {
+  margin-top:4px; padding:10px 14px;
+  background: linear-gradient(135deg, #faf5ff 0%, #eef2ff 100%);
+  border:1px solid #e9d5ff; border-radius:12px;
+  font-size:12.5px; color:#6b21a8; white-space:pre-wrap;
+  cursor:pointer; align-self:flex-start; max-width:78%;
+}
+.msg.reasoning-block.collapsed { max-height:44px; overflow:hidden; }
+.reasoning-label {
+  display:flex; align-items:center; gap:6px; font-size:11px;
+  color:#7c3aed; font-weight:600; margin-bottom:6px; user-select:none;
+}
+
+/* ========== TOOLBAR ========== */
+.toolbar {
+  display:flex; gap:6px; padding:8px 20px;
+  background:var(--surface); border-top:1px solid var(--border);
+  flex-shrink:0; overflow-x:auto;
+}
+.toolbar button {
+  display:flex; align-items:center; gap:5px;
+  padding:7px 14px; border-radius:20px; border:1px solid var(--border);
+  background:var(--surface); color:var(--text-secondary);
+  font-size:12.5px; cursor:pointer; white-space:nowrap;
+  transition: all .15s; font-family:inherit;
+}
+.toolbar button:hover { background:var(--accent-light); border-color:var(--accent); color:var(--accent); }
+.toolbar button.recording {
+  background:#fef2f2; border-color:var(--danger); color:var(--danger);
+  animation: pulse-rec 1.5s infinite;
+}
+.toolbar button.syncing { background:#fffbeb; border-color:var(--warning); color:var(--warning); }
+@keyframes pulse-rec { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.4); } 50% { box-shadow: 0 0 0 6px rgba(239,68,68,0); } }
+
+/* ========== INPUT ========== */
+.input-area {
+  display:flex; padding:12px 20px 20px; gap:10px;
+  background:var(--surface); flex-shrink:0; border-top:1px solid var(--border);
+}
+.input-wrapper {
+  flex:1; display:flex; align-items:flex-end;
+  background:var(--bg); border:2px solid var(--border);
+  border-radius:var(--radius-lg); padding:4px; transition: border-color .2s;
+}
+.input-wrapper:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px rgba(99,102,241,.1); }
+.input-wrapper textarea {
+  flex:1; background:transparent; border:none; padding:8px 12px;
+  color:var(--text); font-size:14px; resize:none; max-height:140px;
+  font-family:inherit; outline:none; line-height:1.5;
+}
+.input-wrapper textarea::placeholder { color:var(--muted); }
+.send-btn {
+  width:38px; height:38px; border-radius:50%; border:none;
+  background:var(--accent-gradient); color:#fff; font-size:16px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; transition: all .2s; margin:2px;
+  box-shadow: 0 2px 8px rgba(99,102,241,.3);
+}
+.send-btn:hover { transform:scale(1.05); box-shadow: 0 4px 14px rgba(99,102,241,.4); }
+.send-btn:disabled { background:#e2e8f0; color:#94a3b8; box-shadow:none; transform:none; cursor:default; }
+
+/* ========== THINKING ========== */
+.thinking-indicator {
+  display:flex; align-items:center; gap:8px; padding:14px 18px;
+  align-self:flex-start; background:var(--surface);
+  border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:var(--shadow-sm);
+}
+.thinking-dots { display:flex; gap:3px; }
+.thinking-dots span {
+  width:6px; height:6px; border-radius:50%; background:var(--accent);
+  animation: dot-bounce 1.4s infinite ease-in-out both;
+}
+.thinking-dots span:nth-child(1) { animation-delay:-.32s; }
+.thinking-dots span:nth-child(2) { animation-delay:-.16s; }
+.thinking-dots span:nth-child(3) { animation-delay:0; }
+@keyframes dot-bounce { 0%,80%,100% { transform:scale(0); opacity:.4; } 40% { transform:scale(1); opacity:1; } }
+.thinking-text { font-size:12px; color:var(--muted); }
+
+/* ========== MODAL ========== */
+.modal-overlay {
+  display:none; position:fixed; inset:0; background:rgba(15,23,42,.5);
+  backdrop-filter:blur(4px); z-index:100; align-items:flex-end; justify-content:center;
+}
+.modal-overlay.show { display:flex; }
+.modal-panel {
+  background:var(--surface); border-radius:var(--radius-xl) var(--radius-xl) 0 0;
+  padding:28px 24px; width:100%; max-width:540px; max-height:85vh;
+  overflow-y:auto; box-shadow:var(--shadow-lg);
+}
+.modal-panel h3 { font-size:18px; font-weight:700; margin-bottom:20px; color:var(--text); }
+.modal-panel label {
+  font-size:12px; font-weight:600; color:var(--text-secondary);
+  display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;
+}
+.modal-panel input,.modal-panel select,.modal-panel textarea {
+  width:100%; background:var(--bg); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:10px 14px;
+  color:var(--text); font-size:14px; margin-bottom:16px;
+  font-family:inherit; outline:none; transition:border-color .2s;
+}
+.modal-panel input:focus,.modal-panel select:focus,.modal-panel textarea:focus { border-color:var(--accent); }
+.modal-panel textarea { resize:vertical; min-height:100px; font-size:13px; line-height:1.6; }
+.prompt-toggle {
+  display:flex; align-items:center; gap:6px; font-size:13px; color:var(--accent);
+  cursor:pointer; margin-bottom:12px; font-weight:500; user-select:none;
+  padding:8px 12px; border-radius:8px; transition:background .15s;
+}
+.prompt-toggle:hover { background:var(--accent-light); }
+
+.btn-row { display:flex; gap:8px; margin-top:8px; }
+.btn-row button {
+  flex:1; padding:12px; border-radius:var(--radius-sm); font-size:14px;
+  cursor:pointer; border:none; font-weight:600; font-family:inherit; transition:all .15s;
+}
+.btn-primary { background:var(--accent-gradient); color:#fff; box-shadow:0 2px 8px rgba(99,102,241,.25); }
+.btn-primary:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(99,102,241,.35); }
+.btn-secondary { background:var(--bg); color:var(--text-secondary); border:1px solid var(--border); }
+.btn-secondary:hover { background:var(--border); }
+.btn-danger { background:#fef2f2; color:var(--danger); border:1px solid #fecaca; }
+.btn-danger:hover { background:#fee2e2; }
+.hint { font-size:11px; color:var(--muted); margin:-12px 0 14px; }
+.file-upload { display:none; }
+
+/* ========== MEMORY VIEWER ========== */
+.memory-stats { display:flex; gap:12px; margin-bottom:20px; }
+.memory-stat {
+  flex:1; text-align:center; padding:12px 8px; background:var(--bg);
+  border-radius:var(--radius-sm); border:1px solid var(--border);
+}
+.memory-stat .num { font-size:24px; font-weight:700; color:var(--accent); }
+.memory-stat .label { font-size:11px; color:var(--muted); margin-top:2px; }
+.memory-filters { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+.memory-filter {
+  padding:5px 12px; border-radius:14px; border:1px solid var(--border);
+  background:var(--surface); color:var(--text-secondary);
+  font-size:12px; cursor:pointer; font-family:inherit; transition:all .15s;
+}
+.memory-filter.active { background:var(--accent-light); border-color:var(--accent); color:var(--accent); font-weight:600; }
+.memory-list { display:flex; flex-direction:column; gap:8px; max-height:50vh; overflow-y:auto; }
+.memory-card {
+  background:var(--bg); border-radius:var(--radius-sm); padding:14px;
+  border:1px solid var(--border); display:flex; gap:10px; align-items:flex-start;
+  transition: border-color .15s;
+}
+.memory-card:hover { border-color:var(--accent); }
+.memory-card .type-badge {
+  font-size:10px; padding:2px 8px; border-radius:10px;
+  font-weight:600; flex-shrink:0; margin-top:1px;
+}
+.type-fact { background:#dbeafe; color:#1e40af; }
+.type-preference { background:#fce7f3; color:#9d174d; }
+.type-project { background:#d1fae5; color:#065f46; }
+.type-principle { background:#fef3c7; color:#92400e; }
+.type-relationship { background:#ede9fe; color:#5b21b6; }
+.memory-card .content { flex:1; font-size:13px; line-height:1.6; }
+.memory-card .meta { font-size:10px; color:var(--muted); margin-top:4px; }
+.memory-card .delete-mem {
+  background:none; border:none; color:var(--muted); cursor:pointer;
+  font-size:14px; padding:4px; border-radius:4px; transition:color .15s;
+}
+.memory-card .delete-mem:hover { color:var(--danger); }
+
+.empty-state {
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:12px; color:var(--muted); padding:40px;
+}
+.empty-state .icon {
+  width:64px; height:64px; border-radius:var(--radius-lg);
+  background:var(--accent-light); display:flex; align-items:center; justify-content:center; font-size:28px;
+}
+.empty-state h2 { font-size:17px; color:var(--text); font-weight:600; }
+.empty-state p { font-size:13px; text-align:center; max-width:260px; line-height:1.6; }
+
+@media (max-width:480px) {
+  .msg { max-width:88%; }
+  header { padding:12px 16px; }
+  #chat { padding:14px; }
+  .input-area { padding:10px 14px 16px; }
+  .toolbar { padding:6px 14px; }
+  .modal-panel { padding:22px 18px; }
+}
 </style>
 </head>
 <body>
 
+<!-- ========== HEADER ========== -->
 <header>
-  <h1>🧠 Cognitive OS</h1>
-  <div class="actions">
-    <span id="keyStatus" style="font-size:10px;color:var(--muted);margin-right:4px"></span>
-    <button onclick="showSettings()">⚙️</button>
-    <button onclick="clearChat()">🗑</button>
+  <div class="header-avatar">🧠</div>
+  <div class="header-info">
+    <h1>Cognitive OS</h1>
+    <span class="header-status" id="syncStatus">Brice 的数字分身 · 在线</span>
+  </div>
+  <div class="header-actions">
+    <button onclick="showMemoryViewer()" title="记忆库">🧠</button>
+    <button onclick="showSettings()" title="设置">⚙️</button>
+    <button onclick="clearChat()" class="danger" title="清空对话">🗑</button>
   </div>
 </header>
 
-<div id="chat">
-  <div class="msg system">Brice 的数字分身已就绪。</div>
-</div>
+<!-- ========== CHAT ========== -->
+<div id="chat"></div>
 
+<!-- ========== TOOLBAR ========== -->
 <div class="toolbar">
-  <button id="voiceBtn" onclick="toggleVoice()">🎤 语音</button>
-  <button onclick="document.getElementById('fileInput').click()">📎 文档</button>
-  <button onclick="doDailyLog()">📝 日志</button>
+  <button id="voiceBtn" onclick="toggleVoice()">🎤 语音输入</button>
+  <button onclick="document.getElementById('fileInput').click()">📎 上传文档</button>
+  <button onclick="doDailyLog()">📝 认知日志</button>
+  <button onclick="extractMemories()" id="extractBtn">🧠 提取记忆</button>
   <input type="file" id="fileInput" class="file-upload" accept=".txt,.md,.pdf,.doc,.docx,.json,.csv" onchange="handleFile(this)" multiple>
 </div>
 
+<!-- ========== INPUT ========== -->
 <div class="input-area">
-  <textarea id="input" rows="1" placeholder="说点什么..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
-  <button id="sendBtn" onclick="send()">发送</button>
+  <div class="input-wrapper">
+    <textarea id="input" rows="1" placeholder="向 Brice 提问，获取 AI 转型洞察…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
+    <button class="send-btn" id="sendBtn" onclick="send()">↑</button>
+  </div>
 </div>
 
-<div class="modal" id="settingsModal">
-  <div class="modal-content">
+<!-- ========== SETTINGS MODAL ========== -->
+<div class="modal-overlay" id="settingsModal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal-panel">
     <h3>⚙️ 设置</h3>
+
     <label>DeepSeek API Key</label>
-    <input type="password" id="apiKey" placeholder="sk-...">
-    <p class="hint">Key 仅保存在你的浏览器中，不会上传到任何服务器</p>
-    <label>模型</label>
+    <input type="password" id="apiKeyInput" placeholder="sk-...">
+    <p class="hint">Key 仅保存在浏览器本地</p>
+
+    <label>模型选择</label>
     <select id="modelSelect">
-      <option value="deepseek-chat">deepseek-chat (V3)</option>
-      <option value="deepseek-reasoner">deepseek-reasoner (R1)</option>
+      <option value="deepseek-chat">DeepSeek V3 — 快速对话</option>
+      <option value="deepseek-reasoner">DeepSeek R1 — 深度推理</option>
     </select>
+
+    <label>云端同步</label>
+    <input type="text" id="cloudUrl" placeholder="https://your-server.com">
+    <input type="password" id="cloudKey" placeholder="云端 API Key">
+    <p class="hint">部署 server.js 后填写，不填则仅本地存储</p>
+
+    <div class="prompt-toggle" onclick="togglePromptEdit()">
+      <span id="promptToggleIcon">▶</span> 自定义 System Prompt
+    </div>
+    <textarea id="promptInput" style="display:none" placeholder="输入自定义 System Prompt…"></textarea>
+
     <div class="btn-row">
+      <button class="btn-danger" id="resetPromptBtn" style="display:none" onclick="resetPrompt()">恢复默认</button>
       <button class="btn-secondary" onclick="closeSettings()">取消</button>
       <button class="btn-primary" onclick="saveSettings()">保存</button>
     </div>
   </div>
 </div>
 
+<!-- ========== MEMORY VIEWER MODAL ========== -->
+<div class="modal-overlay" id="memoryModal" onclick="if(event.target===this)closeMemoryViewer()">
+  <div class="modal-panel" style="max-width:600px;">
+    <h3>🧠 Brice 的记忆库</h3>
+    <div class="memory-stats" id="memoryStats"></div>
+    <div class="memory-filters" id="memoryFilters"></div>
+    <div class="memory-list" id="memoryList"></div>
+    <p class="hint" style="margin-top:16px;">点击工具栏「🧠 提取记忆」让 Brice 自动从对话中学习</p>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="syncFromCloud()">☁️ 从云端拉取</button>
+      <button class="btn-primary" onclick="closeMemoryViewer()">关闭</button>
+    </div>
+  </div>
+</div>
+
 <script>
-// ==================== CONFIG ====================
-const SYSTEM_PROMPT = `你是 Brice 的数字分身。你的目标是比 Brice 自己想得更深、更全、更清晰。
+// ==================== DOM ====================
+const chat    = document.getElementById("chat");
+const input   = document.getElementById("input");
+const sendBtn = document.getElementById("sendBtn");
+
+// ==================== DEFAULT SYSTEM PROMPT ====================
+const DEFAULT_SYSTEM_PROMPT = `你是 Brice 的数字分身。你的目标是比 Brice 自己想得更深、更全、更清晰。
 
 === Brice的身份 ===
 Brice，13年企业培训与组织学习经验。核心能力：将复杂经验转化为结构化知识与可复制方法。
@@ -114,82 +401,180 @@ Brice，13年企业培训与组织学习经验。核心能力：将复杂经验�
 认知型、战略型、结构化。不过度情绪化，不一味附和。`;
 
 // ==================== STATE ====================
-let messages = [];
-let apiKey = localStorage.getItem("cogos_key") || "";
-let model = localStorage.getItem("cogos_model") || "deepseek-chat";
-let isRecording = false;
+let messages     = [];
+let memories     = [];
+let apiKey       = localStorage.getItem("cogos_key") || "";
+let model        = localStorage.getItem("cogos_model") || "deepseek-chat";
+let systemPrompt = localStorage.getItem("cogos_prompt") || DEFAULT_SYSTEM_PROMPT;
+let cloudUrl     = localStorage.getItem("cogos_cloud_url") || "";
+let cloudKey     = localStorage.getItem("cogos_cloud_key") || "";
+let isRecording  = false;
+let recognition  = null;
+let lastDateLabel = "";
 
-let recognition = null;
-var chatLoaded = false;
+// ==================== INDEXEDDB ====================
+const DB_NAME = "cog-os-db";
+const DB_VER  = 1;
 
-function saveChat() {
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains("memories")) {
+        const store = db.createObjectStore("memories", { keyPath: "id" });
+        store.createIndex("type", "type", { unique: false });
+        store.createIndex("updated", "updated", { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror  = () => reject(req.error);
+  });
+}
+
+async function loadMemoriesFromDB() {
   try {
-    var save = messages.slice(-50); // keep last 50 messages
-    localStorage.setItem("cogos_chat", JSON.stringify(save));
-  } catch(e) {}
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction("memories", "readonly");
+      const store = tx.objectStore("memories");
+      const req = store.getAll();
+      req.onsuccess = () => { resolve(req.result || []); db.close(); };
+      req.onerror   = () => { resolve([]); db.close(); };
+    });
+  } catch(e) { return []; }
+}
+
+async function saveMemoriesToDB(list) {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction("memories", "readwrite");
+      const store = tx.objectStore("memories");
+      store.clear();
+      for (const m of list) store.put(m);
+      tx.oncomplete = () => { db.close(); resolve(true); };
+      tx.onerror    = () => { db.close(); resolve(false); };
+    });
+  } catch(e) { return false; }
+}
+
+async function deleteMemoryFromDB(id) {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction("memories", "readwrite");
+      tx.objectStore("memories").delete(id);
+      tx.oncomplete = () => { db.close(); resolve(true); };
+      tx.onerror    = () => { db.close(); resolve(false); };
+    });
+  } catch(e) { return false; }
+}
+
+// ==================== HELPERS ====================
+function nowTime() { return new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"}); }
+function dateLabel() {
+  const d = new Date();
+  return d.getFullYear()+"年"+(d.getMonth()+1)+"月"+d.getDate()+"日";
+}
+function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function escapeHtml(s) {
+  const div = document.createElement("div"); div.textContent = s; return div.innerHTML;
+}
+
+function maybeDateDivider() {
+  const today = dateLabel();
+  if (today !== lastDateLabel) {
+    lastDateLabel = today;
+    const div = document.createElement("div");
+    div.className = "date-divider"; div.textContent = today;
+    chat.appendChild(div);
+  }
+}
+
+// ==================== PERSISTENCE ====================
+function saveChatLocal() {
+  try { localStorage.setItem("cogos_chat", JSON.stringify(messages.slice(-100))); } catch(e) {}
 }
 
 function loadChat() {
   try {
-    var raw = localStorage.getItem("cogos_chat");
-    if (!raw) return;
-    var saved = JSON.parse(raw);
-    if (!Array.isArray(saved)) return;
+    const raw = localStorage.getItem("cogos_chat");
+    if (!raw) return showEmpty();
+    const saved = JSON.parse(raw);
+    if (!Array.isArray(saved) || saved.length === 0) return showEmpty();
     messages = saved;
     chat.innerHTML = "";
-    for (var i = 0; i < messages.length; i++) {
-      var m = messages[i];
-      var role = m.role === "user" ? "user" : "ai";
-      addMsgRaw(role, m.content);
+    for (const m of messages) {
+      maybeDateDivider();
+      const role = m.role==="user"?"user":"ai";
+      let html = typeof m.content==="string"?escapeHtml(m.content):"";
+      if (m.reasoning) html = buildReasoningBlock(m.reasoning)+html;
+      appendMsgBubble(role, html, m.time||"");
     }
-    addSystem("📂 已恢复上次对话（" + messages.length + " 条）");
-    chatLoaded = true;
-  } catch(e) {}
+    chat.scrollTop = chat.scrollHeight;
+  } catch(e) { showEmpty(); }
 }
 
-function addMsgRaw(role, text) {
-  var div = document.createElement("div");
-  div.className = "msg " + role;
-  var now = new Date().toLocaleTimeString("zh-CN", {hour:"2-digit",minute:"2-digit"});
-  div.innerHTML = text + '<div class="time">' + now + '</div>';
-  chat.appendChild(div);
+function showEmpty() {
+  chat.innerHTML =
+    '<div class="empty-state"><div class="icon">🧠</div>'+
+    '<h2>Cognitive OS</h2>'+
+    '<p>Brice 的数字分身已就绪。<br>开始对话，让 Brice 越来越懂你。</p></div>';
 }
 
-
-function updateKeyStatus() {
-  const el = document.getElementById("keyStatus");
-  if (el) el.textContent = apiKey ? "🔑" : "";
+// ==================== MESSAGE RENDERING ====================
+function buildReasoningBlock(content) {
+  return '<div class="msg reasoning-block collapsed" onclick="this.classList.toggle(\'collapsed\')">'+
+    '<div class="reasoning-label">💡 思维链（点击展开）</div>'+escapeHtml(content)+'</div>';
 }
-setTimeout(updateKeyStatus, 100);
 
-// ==================== UI ====================
-const chat = document.getElementById("chat");
-const input = document.getElementById("input");
-const sendBtn = document.getElementById("sendBtn");
-
-function addMsg(role, text) {
+function appendMsgBubble(role, html, timeStr) {
   const div = document.createElement("div");
-  div.className = `msg ${role}`;
-  const now = new Date().toLocaleTimeString("zh-CN", {hour:"2-digit",minute:"2-digit"});
-  div.innerHTML = text + `<div class="time">${now}</div>`;
+  div.className = "msg "+role;
+  div.innerHTML = html+'<span class="time">'+(timeStr||nowTime())+'</span>';
   chat.appendChild(div);
+}
+
+function addMsg(role, text, timeStr) {
+  maybeDateDivider();
+  appendMsgBubble(role, escapeHtml(text), timeStr);
   chat.scrollTop = chat.scrollHeight;
 }
 
 function addSystem(text) {
   const div = document.createElement("div");
-  div.className = "msg system";
-  div.textContent = text;
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
+  div.className = "msg system"; div.textContent = text;
+  chat.appendChild(div); chat.scrollTop = chat.scrollHeight;
 }
 
 function clearChat() {
-  if (confirm("清空对话记录？")) {
-    chat.innerHTML = '<div class="msg system">对话已清空。</div>';
-    messages = [];
-    localStorage.removeItem("cogos_chat");
+  if (confirm("确定清空所有对话记录？")) {
+    chat.innerHTML=""; messages=[]; lastDateLabel="";
+    localStorage.removeItem("cogos_chat"); showEmpty();
   }
+}
+
+// ==================== MEMORY INJECTION ====================
+function buildMemoryContext() {
+  if (!memories.length) return "";
+  // Sort by recency, take top 20 most recent + high importance
+  const sorted = [...memories].sort((a,b) => {
+    const iA = (a.importance||1); const iB = (b.importance||1);
+    if (iA!==iB) return iB-iA;
+    return (b.updated||"").localeCompare(a.updated||"");
+  });
+  const top = sorted.slice(0, 20);
+  const typeNames = { fact:"事实", preference:"偏好", project:"项目", principle:"方法论原则", relationship:"人际关系" };
+
+  let ctx = "\n\n=== Brice 的长期记忆（基于历史对话提取） ===\n";
+  for (const m of top) {
+    const tn = typeNames[m.type] || m.type;
+    ctx += "- ["+tn+"] "+m.content+"\n";
+    if (m.tags && m.tags.length) ctx += "  标签: "+m.tags.join(", ")+"\n";
+  }
+  ctx += "=== 记忆结束 ===\n\n在对话中自然引用以上信息，体现你对 Brice 的了解。\n";
+  return ctx;
 }
 
 // ==================== SEND ====================
@@ -198,307 +583,553 @@ async function send() {
   if (!text) return;
   if (!apiKey) { showSettings(); return; }
 
-  addMsg("user", text);
-  messages.push({role:"user", content:text});
-  saveChat();
-  input.value = "";
+  if (chat.querySelector(".empty-state")) chat.innerHTML = "";
+
+  const ts = nowTime();
+  addMsg("user", text, ts);
+  messages.push({role:"user", content:text, time:ts});
+  saveChatLocal();
+  input.value = ""; input.style.height = "auto";
   sendBtn.disabled = true;
-  const thinking = addThinking();
+
+  const thinking = showThinking();
+
+  // Build full prompt with injected memories
+  const fullSystemPrompt = systemPrompt + buildMemoryContext();
 
   try {
     const resp = await fetch("https://api.deepseek.com/v1/chat/completions", {
-      method: "POST",
-      headers: {"Content-Type":"application/json","Authorization":`Bearer ${apiKey}`},
-      body: JSON.stringify({
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+apiKey},
+      body:JSON.stringify({
         model,
-        messages: [{role:"system",content:SYSTEM_PROMPT}, ...messages],
-        temperature: 0.7,
+        messages:[{role:"system",content:fullSystemPrompt},...messages],
+        temperature:0.7, max_tokens:4096,
       })
     });
     const data = await resp.json();
     thinking.remove();
+
     if (data.error) {
-      addMsg("ai", "⚠️ " + (data.error.message || JSON.stringify(data.error)));
+      const errTxt = "⚠️ "+(data.error.message||JSON.stringify(data.error));
+      addMsg("ai", errTxt);
+      messages.push({role:"assistant", content:errTxt, time:nowTime()});
     } else {
-      const reply = data.choices[0].message.content;
-      addMsg("ai", reply);
-      messages.push({role:"assistant", content:reply});
-    saveChat();
+      const choice  = data.choices[0];
+      const reply   = choice.message.content||"";
+      const reason  = choice.message.reasoning_content||"";
+      const replyTs = nowTime();
+
+      maybeDateDivider();
+      let html = "";
+      if (reason) html += buildReasoningBlock(reason);
+      html += escapeHtml(reply);
+      appendMsgBubble("ai", html, replyTs);
+      chat.scrollTop = chat.scrollHeight;
+
+      messages.push({role:"assistant", content:reply, reasoning:reason||"", time:replyTs});
     }
+    saveChatLocal();
   } catch(e) {
     thinking.remove();
-    addMsg("ai", "⚠️ 请求失败: " + e.message + "\\n请检查网络或 API Key 是否正确");
+    const errTxt = "⚠️ 请求失败: "+e.message+"\n请检查网络或 API Key 是否正确";
+    addMsg("ai", errTxt);
+    messages.push({role:"assistant", content:errTxt, time:nowTime()});
+    saveChatLocal();
   }
   sendBtn.disabled = false;
   input.focus();
 }
 
-function addThinking() {
-  const div = document.createElement("div");
-  div.className = "msg system";
-  div.textContent = "思考中...";
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
-  return div;
+function showThinking() {
+  const div = document.createElement("div"); div.className = "thinking-indicator";
+  div.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div>'+
+    '<span class="thinking-text">Brice 正在思考...</span>';
+  chat.appendChild(div); chat.scrollTop = chat.scrollHeight; return div;
 }
+
+// textarea auto-resize
+input.addEventListener("input", function() {
+  this.style.height = "auto";
+  this.style.height = Math.min(this.scrollHeight, 140)+"px";
+});
 
 // ==================== DAILY LOG ====================
 function doDailyLog() {
   const today = new Date().toISOString().slice(0,10);
-  const prompt = `请帮我做今天的认知日志（${today}）：
-
-1. 经验萃取：今天最重要的一个经历（只描述事实）
-2. 模式识别：和之前的什么经历结构相似？
-3. 认知收获：提炼一条可迁移原则（If...Then...格式）
-4. 认知更新：修正了之前的什么看法？
-5. 方法论建设：这条原则可以放进我的AI转型方法论框架的哪个位置？
-
-请用苏格拉底式提问引导我，不要直接给答案。`;
-  input.value = prompt;
-  send();
+  input.value =
+    "请帮我做今天的认知日志（"+today+"）：\n\n"+
+    "1. 经验萃取：今天最重要的一个经历（只描述事实）\n"+
+    "2. 模式识别：和之前的什么经历结构相似？\n"+
+    "3. 认知收获：提炼一条可迁移原则（If...Then...格式）\n"+
+    "4. 认知更新：修正了之前的什么看法？\n"+
+    "5. 方法论建设：这条原则可以放进我的AI转型方法论框架的哪个位置？\n\n"+
+    "请用苏格拉底式提问引导我，不要直接给答案。";
+  input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight,140)+"px";
+  input.focus(); send();
 }
 
 // ==================== VOICE ====================
 function toggleVoice() {
   const btn = document.getElementById("voiceBtn");
-  if (isRecording) { 
-    isRecording = false;
-    recognition?.abort(); 
-    btn.classList.remove("recording");
-    btn.textContent = "🎤 语音";
-    return; 
+  if (isRecording) {
+    isRecording = false; recognition?.abort();
+    btn.classList.remove("recording"); btn.innerHTML = "🎤 语音输入"; return;
   }
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    input.focus();
-    addSystem("💡 vivo浏览器不支持语音，请安装 Chrome 浏览器打开");
-    return;
-  }
+  const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
+  if (!SR) { input.focus(); addSystem("⚠️ 当前浏览器不支持语音输入，请使用 Chrome 或 Edge"); return; }
   recognition = new SR();
-  recognition.lang = "zh-CN";
-  recognition.interimResults = true;
-  recognition.continuous = false;
-  
+  recognition.lang = "zh-CN"; recognition.interimResults = true; recognition.continuous = false;
   let finalText = "";
-  
-  recognition.onstart = () => { 
-    isRecording = true; 
-    btn.classList.add("recording"); 
-    btn.textContent = "🔴 说完点我"; 
-  };
-  
+
+  recognition.onstart = () => { isRecording=true; btn.classList.add("recording"); btn.innerHTML="🔴 正在听..."; };
   recognition.onresult = (e) => {
     let interim = "";
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) {
-        finalText += e.results[i][0].transcript;
-      } else {
-        interim += e.results[i][0].transcript;
-      }
+    for (let i=e.resultIndex;i<e.results.length;i++) {
+      if (e.results[i].isFinal) finalText+=e.results[i][0].transcript;
+      else interim+=e.results[i][0].transcript;
     }
-    input.value = finalText + interim;
+    input.value = finalText+interim;
+    input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,140)+"px";
   };
-  
   recognition.onend = () => {
-    isRecording = false;
-    btn.classList.remove("recording");
-    btn.textContent = "🎤 语音";
-    if (finalText.trim()) {
-      setTimeout(() => { input.value = finalText.trim(); }, 100);
-    }
+    isRecording=false; btn.classList.remove("recording"); btn.innerHTML="🎤 语音输入";
+    if (finalText.trim()) { input.value=finalText.trim(); input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,140)+"px"; }
   };
-  
   recognition.onerror = (e) => {
-    if (e.error === "aborted" || e.error === "no-speech") {
-    } else if (e.error === "not-allowed") {
-      addSystem("⚠️ 请允许麦克风权限后重试");
-    } else if (e.error === "network") {
-      addSystem("⚠️ 语音需要网络连接");
-    } else {
-      addSystem("⚠️ 语音失败(" + e.error + ")，请用 Chrome 浏览器打开");
-    }
-    isRecording = false;
-    btn.classList.remove("recording");
-    btn.textContent = "🎤 语音";
-    if (finalText.trim()) input.value = finalText.trim();
+    if (["aborted","no-speech"].includes(e.error)) {}
+    else if (e.error==="not-allowed") addSystem("⚠️ 请允许麦克风权限后重试");
+    else if (e.error==="network") addSystem("⚠️ 语音识别需要网络连接");
+    else addSystem("⚠️ 语音识别失败（"+e.error+"），请使用 Chrome 浏览器");
+    isRecording=false; btn.classList.remove("recording"); btn.innerHTML="🎤 语音输入";
   };
-  
   recognition.start();
 }
 
+// ==================== MEMORY EXTRACTION ====================
+async function extractMemories() {
+  if (!apiKey) { showSettings(); return; }
+  if (messages.length < 2) { addSystem("💡 先聊几句再提取记忆"); return; }
 
-// ==================== BUILT-IN DOCX PARSER ====================
-// 纯 JS 解析 DOCX（不依赖任何外部库）
-async function parseDocxText(arrayBuffer) {
-  var step = "";
+  const btn = document.getElementById("extractBtn");
+  btn.disabled = true; btn.textContent = "🧠 分析中...";
+
+  const recentMsgs = messages.slice(-20);
+  const existingSummary = memories.map(m => "["+m.type+"] "+m.content).join("\n");
+
+  const extractPrompt =
+    "你是 Brice 的记忆助手。从以下对话中提取 Brice 的关键信息，只提取对话中明确出现的新信息，不要重复已有内容。\n\n"+
+    "已有记忆：\n"+existingSummary+"\n\n"+
+    "对话记录：\n"+recentMsgs.map(m=>m.role+": "+m.content).join("\n")+"\n\n"+
+    '请输出 JSON 数组，每个元素格式：{"type":"fact|preference|project|principle|relationship","content":"...","tags":["..."],"importance":1-5}\n'+
+    "type 说明：fact=事实信息, preference=偏好/习惯, project=正在做的项目, principle=方法论原则(If...Then), relationship=人际关系\n"+
+    "importance: 1=琐碎 3=重要 5=核心身份信息\n"+
+    "如果没有新信息，输出空数组 []。只输出 JSON，不要解释。";
+
   try {
-    var u8 = new Uint8Array(arrayBuffer);
-    
-    // Step 1: Find EOCD
-    step = "查找ZIP结构";
-    var eocdPos = -1;
-    for (var i = u8.length - 22; i >= 0; i--) {
-      if (u8[i]===0x50 && u8[i+1]===0x4b && u8[i+2]===0x05 && u8[i+3]===0x06) { eocdPos = i; break; }
+    const resp = await fetch("https://api.deepseek.com/v1/chat/completions", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+apiKey},
+      body:JSON.stringify({
+        model:"deepseek-chat",
+        messages:[{role:"system",content:"你是记忆提取器，只输出 JSON。"},{role:"user",content:extractPrompt}],
+        temperature:0.1, max_tokens:2048,
+      })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+
+    const raw = data.choices[0].message.content.trim();
+    // Try to extract JSON from response
+    let jsonStr = raw;
+    const jsonMatch = raw.match(/\[[\s\S]*\]/);
+    if (jsonMatch) jsonStr = jsonMatch[0];
+
+    const extracted = JSON.parse(jsonStr);
+    if (!Array.isArray(extracted) || extracted.length===0) {
+      addSystem("✅ 没有发现新信息，Brice 的记忆库已是最新");
+      btn.disabled = false; btn.textContent = "🧠 提取记忆"; return;
     }
-    if (eocdPos < 0) throw new Error("不是有效的DOCX/ZIP文件");
-    
-    var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
-    var cdOffset = dv.getUint32(eocdPos + 16, true);
-    var totalEntries = dv.getUint16(eocdPos + 10, true);
-    
-    // Step 2: Find word/document.xml
-    step = "寻找word/document.xml";
-    var docXmlOffset = -1, docXmlSize = 0, docXmlMethod = 0;
-    var pos = cdOffset;
-    
-    for (var i = 0; i < totalEntries; i++) {
-      var sig = dv.getUint32(pos, true);
-      if (sig !== 0x02014b50) break;
-      var method = dv.getUint16(pos + 10, true);
-      var compSize = dv.getUint32(pos + 20, true);
-      var nameLen = dv.getUint16(pos + 28, true);
-      var extraLen = dv.getUint16(pos + 30, true);
-      var commentLen = dv.getUint16(pos + 32, true);
-      var localOff = dv.getUint32(pos + 42, true);
-      
-      var nameBytes = u8.slice(pos + 46, pos + 46 + nameLen);
-      var name = new TextDecoder().decode(nameBytes);
-      
-      if (name === "word/document.xml") {
-        var lhNameLen = dv.getUint16(localOff + 26, true);
-        var lhExtraLen = dv.getUint16(localOff + 28, true);
-        docXmlOffset = localOff + 30 + lhNameLen + lhExtraLen;
-        docXmlSize = compSize;
-        docXmlMethod = method;
-        break;
-      }
-      pos += 46 + nameLen + extraLen + commentLen;
+
+    // Merge new memories
+    let added = 0;
+    for (const item of extracted) {
+      if (!item.content || !item.type) continue;
+      // Check for duplicates (simple substring match)
+      const exists = memories.some(m =>
+        m.content.includes(item.content) || item.content.includes(m.content)
+      );
+      if (exists) continue;
+
+      memories.push({
+        id: uid(),
+        type: item.type || "fact",
+        content: item.content,
+        tags: item.tags || [],
+        importance: item.importance || 3,
+        created: new Date().toISOString(),
+        updated: new Date().toISOString(),
+      });
+      added++;
     }
-    if (docXmlOffset < 0) throw new Error("DOCX中未找到文档内容");
-    
-    // Step 3: Decompress
-    step = "解压文档内容";
-    var xmlBytes = u8.slice(docXmlOffset, docXmlOffset + docXmlSize);
-    
-    if (docXmlMethod === 8) {
-      try {
-        // Try browser native decompression first
-        var ds = new DecompressionStream("deflate-raw");
-        var writer = ds.writable.getWriter();
-        writer.write(xmlBytes);
-        writer.close();
-        var result = await new Response(ds.readable).arrayBuffer();
-        xmlBytes = new Uint8Array(result);
-      } catch(e) {
-        // Fallback: pure JS inflate
-        step = "解压文档内容(备用方案)";
-        xmlBytes = inflateRaw(xmlBytes);
-      }
+
+    if (added > 0) {
+      await saveMemoriesToDB(memories);
+      await syncToCloud();
+      addSystem("🧠 新增长期记忆 "+added+" 条，Brice 更懂你了");
+    } else {
+      addSystem("✅ 没有新信息，Brice 的记忆库已是最新");
     }
-    
-    // Step 4: Parse XML
-    step = "解析XML";
-    var xml = new TextDecoder().decode(xmlBytes);
-    
-    // Extract text from <w:t> tags
-    var texts = [];
-    var tRegex = /<w:t[^>]*>([^<]*)<\/w:t>/g;
-    var m;
-    while ((m = tRegex.exec(xml)) !== null) {
-      if (m[1]) texts.push(m[1]);
-    }
-    
-    var result_text = texts.join("\n") || "[文档内容为空]";
-    if (result_text.length < 5) result_text = "[文档内容过短: " + result_text + "]";
-    return result_text;
-    
   } catch(e) {
-    return "[解析失败|" + step + "] " + e.message + "\n请将文档内容直接复制粘贴到对话框中。";
+    addSystem("⚠️ 记忆提取失败: "+e.message.slice(0,80));
   }
+  btn.disabled = false; btn.textContent = "🧠 提取记忆";
 }
 
-// ==================== MINIMAL INFLATE (纯JS解压) ====================
-function inflateRaw(data) {
-  // 简单的 Store 检测：如果未压缩，直接返回
-  return data;
+// ==================== MEMORY VIEWER ====================
+function showMemoryViewer() {
+  renderMemoryList("all");
+  document.getElementById("memoryModal").classList.add("show");
 }
 
-// ==================== FILE UPLOAD ====================
-async function handleFile(input) {
-  for (const file of input.files) {
-    let text;
-    try {
-      const ext = file.name.split(".").pop().toLowerCase();
-      if (ext === "docx") {
-        try {
-          addSystem("📄 正在解析 " + file.name + "...");
-          const arrayBuffer = await file.arrayBuffer();
-          text = await parseDocxText(arrayBuffer);
-        } catch(e) {
-          text = "[DOCX解析失败: " + e.message + " - 请将内容复制粘贴到对话框]";
-        }
-      } else if (ext === "doc") {
-        text = "[.doc 旧格式不支持，请用 Word 另存为 .docx 或 .txt 后上传]";
-      } else if (false) {
-      } else if (ext === "pdf") {
-        addSystem("⚠️ PDF暂不支持，请复制内容到对话框");
-        text = "[PDF文件: " + file.name + " - 请将文字内容粘贴到对话框中]";
-      } else if (["txt","md","json","csv","html","xml","yaml","yml"].includes(ext)) {
-        text = await file.text();
-      } else {
-        text = await file.text(); // 尝试直接读取
-        // 如果看起来像乱码，提示用户
-        if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text.slice(0,100))) {
-          text = "[不支持的文件格式: " + file.name + " - 请转为 .txt 或 .md 后上传]";
-        }
-      }
-    } catch(e) {
-      text = "[读取失败: " + file.name + "｜" + e.message + "]";
-      addSystem("⚠️ 读取失败: " + e.message.slice(0,50));
+function closeMemoryViewer() {
+  document.getElementById("memoryModal").classList.remove("show");
+}
+
+function renderMemoryList(filterType) {
+  // Stats
+  const stats = document.getElementById("memoryStats");
+  const counts = {};
+  for (const m of memories) counts[m.type] = (counts[m.type]||0)+1;
+  const typeLabels = { fact:"事实", preference:"偏好", project:"项目", principle:"方法论", relationship:"人际关系" };
+  let statsHTML = "";
+  for (const [t, label] of Object.entries(typeLabels)) {
+    statsHTML += '<div class="memory-stat"><div class="num">'+(counts[t]||0)+'</div><div class="label">'+label+'</div></div>';
+  }
+  stats.innerHTML = statsHTML;
+
+  // Filters
+  const filters = document.getElementById("memoryFilters");
+  const filterTypes = ["all","fact","preference","project","principle","relationship"];
+  const filterLabels = { all:"全部", fact:"事实", preference:"偏好", project:"项目", principle:"方法论", relationship:"人际关系" };
+  filters.innerHTML = filterTypes.map(t =>
+    '<button class="memory-filter'+(t===filterType?" active":"")+
+    '" onclick="renderMemoryList(\''+t+'\')">'+filterLabels[t]+'</button>'
+  ).join("");
+
+  // List
+  const list = document.getElementById("memoryList");
+  const filtered = filterType==="all"?memories:memories.filter(m=>m.type===filterType);
+  if (!filtered.length) {
+    list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:14px;">还没有'+
+      (filterType==="all"?"任何":"该类型")+'记忆<br>去聊几句，然后点击「提取记忆」</div>';
+    return;
+  }
+
+  // Sort by importance desc, then recency
+  filtered.sort((a,b) => {
+    if ((b.importance||0)!==(a.importance||0)) return (b.importance||0)-(a.importance||0);
+    return (b.updated||"").localeCompare(a.updated||"");
+  });
+
+  list.innerHTML = filtered.map(m => {
+    const created = new Date(m.created).toLocaleDateString("zh-CN");
+    const importanceStars = "⭐".repeat(m.importance||1);
+    return '<div class="memory-card">'+
+      '<span class="type-badge type-'+m.type+'">'+typeLabels[m.type]+'</span>'+
+      '<div class="content">'+
+        escapeHtml(m.content)+
+        '<div class="meta">'+importanceStars+' · '+created+(m.tags&&m.tags.length?" · "+m.tags.join(", "):"")+'</div>'+
+      '</div>'+
+      '<button class="delete-mem" onclick="deleteMemory(\''+m.id+'\')" title="删除">✕</button>'+
+    '</div>';
+  }).join("");
+}
+
+async function deleteMemory(id) {
+  if (!confirm("删除这条记忆？")) return;
+  memories = memories.filter(m => m.id !== id);
+  await saveMemoriesToDB(memories);
+  await syncToCloud();
+  renderMemoryList("all");
+}
+
+// ==================== CLOUD SYNC ====================
+async function syncToCloud() {
+  if (!cloudUrl || !cloudKey) return;
+  try {
+    const resp = await fetch(cloudUrl.replace(/\/$/,"")+"/api/memories", {
+      method:"POST",
+      headers: {"Content-Type":"application/json", "x-api-key": cloudKey},
+      body: JSON.stringify({ memories }),
+    });
+    if (resp.ok) {
+      // Also sync chat history
+      await fetch(cloudUrl.replace(/\/$/,"")+"/api/chat", {
+        method:"POST",
+        headers: {"Content-Type":"application/json", "x-api-key": cloudKey},
+        body: JSON.stringify({ messages }),
+      });
     }
-    const preview = text.length > 4000 ? text.slice(0,4000) + "\n...(已截断)" : text;
-    addMsg("user", `📎 ${file.name}\n${preview}`);
-    messages.push({role:"user", content:`以下是我上传的文档「${file.name}」的内容：\n\n${text.slice(0,12000)}`});
+  } catch(e) { /* silent — cloud sync is best-effort */ }
+}
+
+async function syncFromCloud() {
+  if (!cloudUrl || !cloudKey) { addSystem("⚠️ 请先在设置中配置云端同步地址和 Key"); return; }
+  try {
+    const resp = await fetch(cloudUrl.replace(/\/$/,"")+"/api/memories", {
+      headers: { "x-api-key": cloudKey }
+    });
+    if (!resp.ok) throw new Error("HTTP "+resp.status);
+    const cloudMemories = await resp.json();
+    if (Array.isArray(cloudMemories) && cloudMemories.length > 0) {
+      // Merge: use cloud as source, but keep local items not in cloud
+      const cloudIds = new Set(cloudMemories.map(m=>m.id));
+      const localOnly = memories.filter(m=>!cloudIds.has(m.id));
+      memories = [...cloudMemories, ...localOnly];
+      await saveMemoriesToDB(memories);
+      renderMemoryList("all");
+      addSystem("☁️ 已从云端同步 "+cloudMemories.length+" 条记忆");
+    } else {
+      addSystem("☁️ 云端暂无记忆数据，已上传本地记忆");
+      await syncToCloud();
+    }
+  } catch(e) {
+    addSystem("⚠️ 云端同步失败: "+e.message.slice(0,60));
   }
-  input.files = null;
+}
+
+async function loadFromCloud() {
+  if (!cloudUrl || !cloudKey) return;
+  try {
+    // Pull memories
+    const memResp = await fetch(cloudUrl.replace(/\/$/,"")+"/api/memories", {
+      headers: { "x-api-key": cloudKey }
+    });
+    if (memResp.ok) {
+      const cloudMem = await memResp.json();
+      if (Array.isArray(cloudMem) && cloudMem.length > 0) {
+        const cloudIds = new Set(cloudMem.map(m=>m.id));
+        const localOnly = memories.filter(m=>!cloudIds.has(m.id));
+        memories = [...cloudMem, ...localOnly];
+        await saveMemoriesToDB(memories);
+      }
+    }
+
+    // Pull chat history
+    const chatResp = await fetch(cloudUrl.replace(/\/$/,"")+"/api/chat", {
+      headers: { "x-api-key": cloudKey }
+    });
+    if (chatResp.ok) {
+      const cloudChat = await chatResp.json();
+      if (Array.isArray(cloudChat) && cloudChat.length > messages.length) {
+        messages = cloudChat;
+        saveChatLocal();
+      }
+    }
+
+    document.getElementById("syncStatus").textContent = "Brice 的数字分身 · ☁️ 已同步";
+  } catch(e) {
+    document.getElementById("syncStatus").textContent = "Brice 的数字分身 · ⚠️ 离线";
+  }
 }
 
 // ==================== SETTINGS ====================
 function showSettings() {
-  document.getElementById("apiKey").value = apiKey;
+  document.getElementById("apiKeyInput").value = apiKey;
   document.getElementById("modelSelect").value = model;
+  document.getElementById("promptInput").value = systemPrompt;
+  document.getElementById("cloudUrl").value = cloudUrl;
+  document.getElementById("cloudKey").value = cloudKey;
   document.getElementById("settingsModal").classList.add("show");
 }
+
 function closeSettings() { document.getElementById("settingsModal").classList.remove("show"); }
+
+function togglePromptEdit() {
+  const ta = document.getElementById("promptInput");
+  const rb = document.getElementById("resetPromptBtn");
+  const ic = document.getElementById("promptToggleIcon");
+  if (ta.style.display==="none") {
+    ta.style.display="block"; ta.value=systemPrompt;
+    rb.style.display="inline-block"; ic.textContent="▼";
+  } else {
+    ta.style.display="none"; rb.style.display="none"; ic.textContent="▶";
+  }
+}
+
+function resetPrompt() { document.getElementById("promptInput").value = DEFAULT_SYSTEM_PROMPT; }
+
 function saveSettings() {
-  apiKey = document.getElementById("apiKey").value.trim();
-  model = document.getElementById("modelSelect").value;
+  apiKey = document.getElementById("apiKeyInput").value.trim();
+  model  = document.getElementById("modelSelect").value;
+  cloudUrl = document.getElementById("cloudUrl").value.trim();
+  cloudKey = document.getElementById("cloudKey").value.trim();
+
+  const pi = document.getElementById("promptInput");
+  if (pi.style.display!=="none") {
+    systemPrompt = pi.value.trim()||DEFAULT_SYSTEM_PROMPT;
+    localStorage.setItem("cogos_prompt", systemPrompt);
+  }
   localStorage.setItem("cogos_key", apiKey);
   localStorage.setItem("cogos_model", model);
+  localStorage.setItem("cogos_cloud_url", cloudUrl);
+  localStorage.setItem("cogos_cloud_key", cloudKey);
   closeSettings();
-  if (apiKey) addSystem("✅ 设置已保存");
+  if (apiKey) {
+    addSystem("✅ 设置已保存");
+    if (cloudUrl) { addSystem("☁️ 正在连接云端..."); loadFromCloud(); }
+  }
+}
+
+// ==================== DOCX PARSER ====================
+async function parseDocxText(arrayBuffer) {
+  let step = "";
+  try {
+    const u8 = new Uint8Array(arrayBuffer);
+    step = "查找ZIP结构";
+    let eocdPos = -1;
+    for (let i=u8.length-22;i>=0;i--) {
+      if (u8[i]===0x50&&u8[i+1]===0x4b&&u8[i+2]===0x05&&u8[i+3]===0x06){eocdPos=i;break;}
+    }
+    if (eocdPos<0) throw new Error("不是有效的DOCX/ZIP文件");
+    const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    const cdOffset = dv.getUint32(eocdPos+16,true);
+    const totalEntries = dv.getUint16(eocdPos+10,true);
+
+    step = "寻找word/document.xml";
+    let docXmlOffset=-1, docXmlSize=0, docXmlMethod=0, pos=cdOffset;
+    for (let i=0;i<totalEntries;i++) {
+      if (dv.getUint32(pos,true)!==0x02014b50) break;
+      const method=dv.getUint16(pos+10,true), compSize=dv.getUint32(pos+20,true);
+      const nameLen=dv.getUint16(pos+28,true), extraLen=dv.getUint16(pos+30,true);
+      const commentLen=dv.getUint16(pos+32,true), localOff=dv.getUint32(pos+42,true);
+      if (new TextDecoder().decode(u8.slice(pos+46,pos+46+nameLen))==="word/document.xml") {
+        const lhN=dv.getUint16(localOff+26,true), lhE=dv.getUint16(localOff+28,true);
+        docXmlOffset=localOff+30+lhN+lhE; docXmlSize=compSize; docXmlMethod=method; break;
+      }
+      pos+=46+nameLen+extraLen+commentLen;
+    }
+    if (docXmlOffset<0) throw new Error("DOCX中未找到文档内容");
+
+    step = "解压文档内容";
+    let xmlBytes = u8.slice(docXmlOffset, docXmlOffset+docXmlSize);
+    if (docXmlMethod===8) {
+      let done=false;
+      try {
+        const ds=new DecompressionStream("deflate");
+        const w=ds.writable.getWriter(); w.write(xmlBytes); w.close();
+        xmlBytes=new Uint8Array(await new Response(ds.readable).arrayBuffer());
+        done=true;
+      } catch(e1) {
+        try {
+          if (xmlBytes.length>6) {
+            const raw=xmlBytes.slice(2,xmlBytes.length-4);
+            const ds=new DecompressionStream("deflate-raw");
+            const w=ds.writable.getWriter(); w.write(raw); w.close();
+            xmlBytes=new Uint8Array(await new Response(ds.readable).arrayBuffer());
+            done=true;
+          }
+        } catch(e2) {}
+      }
+      if (!done&&xmlBytes.length>0) {
+        const pv=new TextDecoder().decode(xmlBytes.slice(0,100));
+        if (!pv.startsWith("<?xml")&&!pv.startsWith("<w:"))
+          throw new Error("无法解压，请复制内容到对话框");
+      }
+    }
+
+    step = "解析XML";
+    const xml = new TextDecoder().decode(xmlBytes);
+    const texts=[], reg=/<w:t[^>]*>([^<]*)<\/w:t>/g; let m;
+    while ((m=reg.exec(xml))!==null) if (m[1]) texts.push(m[1]);
+    return texts.join("")||texts.join("\n")||"[文档内容为空]";
+  } catch(e) {
+    return "[解析失败|"+step+"] "+e.message+"\n请将文档内容直接复制粘贴到对话框中。";
+  }
+}
+
+// ==================== FILE UPLOAD ====================
+async function handleFile(el) {
+  for (const file of el.files) {
+    let text;
+    try {
+      const ext = file.name.split(".").pop().toLowerCase();
+      if (ext==="docx") {
+        addSystem("📄 正在解析 "+file.name+"...");
+        text = await parseDocxText(await file.arrayBuffer());
+      } else if (ext==="doc") {
+        text = "[.doc 旧格式不支持，请用 Word 另存为 .docx 或 .txt]";
+      } else if (ext==="pdf") {
+        addSystem("⚠️ PDF暂不支持，请复制内容到对话框");
+        text = "[PDF: "+file.name+"]";
+      } else if (["txt","md","json","csv","html","xml","yaml","yml"].includes(ext)) {
+        text = await file.text();
+      } else {
+        text = await file.text();
+        if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text.slice(0,100)))
+          text = "[不支持的文件格式: "+file.name+"]";
+      }
+    } catch(e) { text = "[读取失败: "+file.name+"]"; }
+    if (chat.querySelector(".empty-state")) chat.innerHTML="";
+    const preview = text.length>4000?text.slice(0,4000)+"\n...(已截断)":text;
+    const ts = nowTime();
+    addMsg("user","📎 "+file.name+"\n"+preview, ts);
+    messages.push({role:"user",content:"以下是我上传的文档「"+file.name+"」的内容：\n\n"+text.slice(0,12000),time:ts});
+    saveChatLocal();
+  }
+  el.value = "";
 }
 
 // ==================== INIT ====================
-// 支持从 URL hash 读取 Key（格式: #key=sk-xxx）
 (function(){
   const hash = window.location.hash.slice(1);
-  const params = new URLSearchParams(hash);
-  const hashKey = params.get("key");
-  if (hashKey && hashKey.startsWith("sk-")) {
-    apiKey = hashKey;
-    model = params.get("model") || model;
-    localStorage.setItem("cogos_key", apiKey);
-    localStorage.setItem("cogos_model", model);
-    // 清除 URL 中的 key，避免泄露
-    history.replaceState(null, "", window.location.pathname);
+  const p = new URLSearchParams(hash);
+  const hk = p.get("key");
+  if (hk&&hk.startsWith("sk-")) {
+    apiKey=hk; model=p.get("model")||model;
+    localStorage.setItem("cogos_key",apiKey);
+    localStorage.setItem("cogos_model",model);
+    history.replaceState(null,"",window.location.pathname);
   }
 })();
-// 强制刷新缓存（版本号递增）
-var COG_VERSION = "3";
-loadChat();
-setTimeout(function(){ chat.scrollTop = chat.scrollHeight; }, 300);
-if (!apiKey) showSettings();
+
+(function migrate(){
+  const ver = localStorage.getItem("cogos_version");
+  if (ver!=="6") {
+    const raw = localStorage.getItem("cogos_chat");
+    if (raw) {
+      try{const s=JSON.parse(raw);if(Array.isArray(s)&&s.length&&!s[0].time)localStorage.removeItem("cogos_chat");}
+      catch(e){}
+    }
+    localStorage.setItem("cogos_version","6");
+  }
+})();
+
+(async function boot() {
+  // Load memories from IndexedDB (primary) or cloud (fallback)
+  const localMemories = await loadMemoriesFromDB();
+  if (localMemories.length > 0) {
+    memories = localMemories;
+  }
+
+  // Load chat
+  lastDateLabel = dateLabel();
+  loadChat();
+
+  // Try cloud sync
+  if (cloudUrl && cloudKey) {
+    loadFromCloud();
+  }
+  const status = document.getElementById("syncStatus");
+  if (status) {
+    if (cloudUrl && cloudKey) status.textContent = "Brice 的数字分身 · ☁️ 已连接";
+    else status.innerHTML = 'Brice 的数字分身 · <span style="color:var(--muted)">💻 本地模式</span>';
+  }
+
+  setTimeout(()=>{ chat.scrollTop=chat.scrollHeight; }, 200);
+  if (!apiKey) setTimeout(showSettings, 400);
+})();
 </script>
 </body>
 </html>
