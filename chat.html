@@ -721,7 +721,7 @@ function toggleVoice() {
   // 优先使用 SpeechRecognition（桌面 Chrome/Edge）
   const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
   if (SR) {
-    if (isRecording) { isRecording=false; recognition?.abort(); btn.classList.remove("recording"); btn.textContent="🎤"; return; }
+    if (isRecording) { isRecording=false; recognition?.abort(); resetVoiceBtn(btn); return; }
     recognition = new SR();
     recognition.lang = "zh-CN"; recognition.interimResults = true; recognition.continuous = false;
     let finalText = "";
@@ -736,14 +736,14 @@ function toggleVoice() {
       input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,140)+"px";
     };
     recognition.onend = () => {
-      isRecording=false; btn.classList.remove("recording"); btn.textContent="🎤";
+      resetVoiceBtn(btn);
       if (finalText.trim()) { input.value=finalText.trim(); input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,140)+"px"; }
     };
     recognition.onerror = (e) => {
-      btn.classList.remove("recording"); btn.textContent="🎤"; isRecording=false;
-      if (e.error==="not-allowed") addSystem("⚠️ 请允许麦克风权限后重试");
-      else if (e.error==="network") addSystem("⚠️ 语音识别需要网络连接");
-      else if (e.error!=="aborted" && e.error!=="no-speech") addSystem("⚠️ 语音识别失败："+e.error);
+      resetVoiceBtn(btn);
+      if (e.error==="not-allowed") showToast("请允许麦克风权限后重试", "error");
+      else if (e.error==="network") showToast("语音识别需要网络连接", "error");
+      else if (e.error!=="aborted" && e.error!=="no-speech") showToast("语音识别失败："+e.error,"error");
     };
     recognition.start();
     return;
@@ -751,7 +751,6 @@ function toggleVoice() {
 
   // 回退：MediaRecorder 录音（移动端/WebView）
   if (isRecording) {
-    // 停止录音
     isRecording = false;
     btn.classList.remove("recording"); btn.textContent="🎤";
     if (mediaRecorder && mediaRecorder.state==="recording") mediaRecorder.stop();
@@ -761,36 +760,86 @@ function toggleVoice() {
 }
 
 async function startMediaRecord(btn) {
+  // 前置检查
+  if (!navigator.mediaDevices) {
+    showToast("当前浏览器不支持录音功能（缺少 mediaDevices API）", "error");
+    addSystem("🔍 诊断：navigator.mediaDevices 不可用。您的 APP 的 WebView 可能需要启用麦克风权限。");
+    return;
+  }
+  if (!navigator.mediaDevices.getUserMedia) {
+    showToast("当前环境不支持获取麦克风（getUserMedia 不可用）", "error");
+    return;
+  }
+  if (typeof MediaRecorder === "undefined") {
+    showToast("当前浏览器不支持 MediaRecorder（无法录音）", "error");
+    addSystem("🔍 诊断：MediaRecorder API 不可用。请使用最新版 Chrome/Safari/Firefox。");
+    return;
+  }
+
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")?"audio/webm;codecs=opus":"audio/webm" });
+    // 移动端兼容：iOS 不支持 webm，用 mp4/aac 或默认
+    const mimeTypes = ["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/aac","audio/wav"];
+    let mime = "";
+    for (const t of mimeTypes) { if (MediaRecorder.isTypeSupported(t)) { mime=t; break; } }
+    mediaRecorder = new MediaRecorder(stream, mime ? { mimeType:mime } : {});
     audioChunks = [];
     mediaRecorder.ondataavailable = (e) => { if (e.data.size>0) audioChunks.push(e.data); };
     mediaRecorder.onstop = () => {
       stream.getTracks().forEach(t=>t.stop());
-      // 录音结束 → 显示音频消息
-      const blob = new Blob(audioChunks, { type: "audio/webm" });
+      const mimeOut = mime||"audio/webm";
+      const blob = new Blob(audioChunks, { type: mimeOut });
+      if (blob.size < 100) { showToast("录音内容为空，请重试","error"); resetVoiceBtn(btn); return; }
       const url  = URL.createObjectURL(blob);
-      addAudioMessage(url, "user");
-      // 也写入 messages 数组
+      addAudioMessage(url);
       messages.push({ role:"user", content:"[🎤 语音消息]", time:new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"}), audio:url });
       localStorage.setItem("cogos_chat", JSON.stringify(messages));
+      showToast("录音完成 ✅","success");
     };
-    mediaRecorder.onerror = () => { addSystem("⚠️ 录音失败"); resetVoiceBtn(btn); };
+    mediaRecorder.onerror = () => { showToast("录音失败","error"); resetVoiceBtn(btn); };
     mediaRecorder.start();
     isRecording = true; btn.classList.add("recording"); btn.textContent="🔴";
+    showToast("正在录音…再次点击停止","info");
     // 最长录 60 秒
-    setTimeout(() => { if (isRecording && mediaRecorder?.state==="recording") { mediaRecorder.stop(); isRecording=false; btn.classList.remove("recording"); btn.textContent="🎤"; } }, 60000);
+    setTimeout(() => {
+      if (isRecording && mediaRecorder?.state==="recording") {
+        mediaRecorder.stop(); resetVoiceBtn(btn); showToast("已达到最长录音时长（60秒）","info");
+      }
+    }, 60000);
   } catch(e) {
-    if (e.name==="NotAllowedError") addSystem("⚠️ 请允许麦克风权限后重试");
-    else addSystem("⚠️ 无法启动录音："+e.message);
+    if (e.name==="NotAllowedError" || e.name==="PermissionDeniedError") {
+      showToast("麦克风权限被拒绝", "error");
+      addSystem("🔍 诊断：麦克风权限被拒。\n• 浏览器：请在地址栏左侧点击🔒图标 → 启用麦克风\n• APP：请在系统设置中允许麦克风权限\n• iOS：Info.plist 需添加 NSMicrophoneUsageDescription\n• Android：AndroidManifest.xml 需添加 RECORD_AUDIO 权限");
+    } else if (e.name==="NotFoundError" || e.name==="DevicesNotFoundError") {
+      showToast("未检测到麦克风设备","error");
+    } else {
+      showToast("录音失败："+(e.message||e.name), "error");
+    }
     resetVoiceBtn(btn);
   }
 }
 
 function resetVoiceBtn(btn) { isRecording=false; btn.classList.remove("recording"); btn.textContent="🎤"; }
 
-function addAudioMessage(url, role) {
+// Toast 浮层提示
+let toastTimer;
+function showToast(msg, type) {
+  let el = document.getElementById("toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "toast";
+    el.style.cssText = "position:fixed;top:16px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:20px;font-size:13px;font-family:inherit;z-index:1000;pointer-events:none;opacity:0;transition:opacity .25s;max-width:90vw;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.15);";
+    document.body.appendChild(el);
+  }
+  const colors = { error:["#fef2f2","#ef4444"], success:["#f0fdf4","#10b981"], info:["#eef2ff","#6366f1"] };
+  const [bg,fg] = colors[type]||colors.info;
+  el.style.background = bg; el.style.color = fg;
+  el.textContent = msg; el.style.opacity = "1";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.opacity="0"; }, 2500);
+}
+
+function addAudioMessage(url) {
   const div = document.createElement("div");
   div.className = "msg voice";
   const audio = document.createElement("audio");
