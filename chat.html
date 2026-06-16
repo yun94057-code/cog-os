@@ -340,7 +340,6 @@ header {
 <!-- ========== TOOLBAR ========== -->
 <div class="toolbar">
   <button onclick="document.getElementById('fileInput').click()">📎 上传文档</button>
-  <button onclick="doDailyLog()">📝 认知日志</button>
   <button onclick="extractMemories()" id="extractBtn">🧠 提取记忆</button>
   <input type="file" id="fileInput" class="file-upload" accept=".txt,.md,.pdf,.doc,.docx,.json,.csv" onchange="handleFile(this)" multiple>
 </div>
@@ -752,21 +751,6 @@ input.addEventListener("input", function() {
   this.style.height = "auto";
   this.style.height = Math.min(this.scrollHeight, 140)+"px";
 });
-
-// ==================== DAILY LOG ====================
-function doDailyLog() {
-  const today = new Date().toISOString().slice(0,10);
-  input.value =
-    "请帮我做今天的认知日志（"+today+"）：\n\n"+
-    "1. 经验萃取：今天最重要的一个经历（只描述事实）\n"+
-    "2. 模式识别：和之前的什么经历结构相似？\n"+
-    "3. 认知收获：提炼一条可迁移原则（If...Then...格式）\n"+
-    "4. 认知更新：修正了之前的什么看法？\n"+
-    "5. 方法论建设：这条原则可以放进我的AI转型方法论框架的哪个位置？\n\n"+
-    "请用苏格拉底式提问引导我，不要直接给答案。";
-  input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight,140)+"px";
-  input.focus(); send();
-}
 
 // ==================== VOICE ====================
 let mediaRecorder = null;
