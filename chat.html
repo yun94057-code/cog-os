@@ -297,6 +297,34 @@ header {
 }
 .memory-card .delete-mem:hover { color:var(--danger); }
 
+/* Search */
+.search-box {
+  width:100%; padding:12px 16px; border:1px solid var(--border); border-radius:var(--radius-sm);
+  font-size:14px; font-family:inherit; background:var(--bg); outline:none; transition:border-color .15s;
+  box-sizing:border-box; margin-top:12px;
+}
+.search-box:focus { border-color:var(--accent); }
+.search-results { max-height:55vh; overflow-y:auto; margin-top:12px; }
+.search-section { margin-bottom:16px; }
+.search-section-title {
+  font-size:12px; font-weight:500; color:var(--muted); margin-bottom:8px;
+  padding-bottom:6px; border-bottom:1px solid var(--border);
+}
+.search-hit {
+  padding:12px; border-radius:var(--radius-sm); background:var(--bg);
+  border:1px solid var(--border); margin-bottom:6px; cursor:pointer; transition:border-color .15s;
+}
+.search-hit:hover { border-color:var(--accent); }
+.search-hit .hit-header { font-size:12px; color:var(--muted); margin-bottom:4px; display:flex; align-items:center; gap:6px; }
+.search-hit .hit-badge {
+  font-size:10px; padding:1px 6px; border-radius:8px; font-weight:500;
+  background:var(--accent-light); color:var(--accent);
+}
+.search-hit .hit-text { font-size:13px; line-height:1.6; color:var(--text); }
+.search-hit .hit-text em { font-style:normal; background:#fef08a; padding:0 2px; border-radius:2px; }
+.search-hit .hit-time { font-size:11px; color:var(--muted); margin-top:4px; }
+.search-empty { text-align:center; padding:32px 16px; color:var(--muted); font-size:13px; }
+
 .empty-state {
   flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
   gap:12px; color:var(--muted); padding:40px;
@@ -328,6 +356,7 @@ header {
     <span class="header-status" id="syncStatus">Brice 的数字分身 · 在线</span>
   </div>
   <div class="header-actions">
+    <button onclick="showSearch()" title="搜索">🔍</button>
     <button onclick="showMemoryViewer()" title="记忆库">🧠</button>
     <button onclick="showSettings()" title="设置">⚙️</button>
     <button onclick="clearChat()" class="danger" title="清空对话">🗑</button>
@@ -401,6 +430,18 @@ header {
   </div>
 </div>
 
+<!-- ========== SEARCH MODAL ========== -->
+<div class="modal-overlay" id="searchModal" onclick="if(event.target===this)closeSearch()">
+  <div class="modal-panel" style="max-width:600px;">
+    <h3>🔍 搜索对话和记忆</h3>
+    <input type="text" id="searchInput" class="search-box" placeholder="输入关键词搜索..." oninput="onSearchInput(this.value)" autofocus>
+    <div id="searchResults" class="search-results"></div>
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn-primary" onclick="closeSearch()">关闭</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 // ==================== DOM ====================
@@ -468,9 +509,11 @@ if (!savedVersion || parseInt(savedVersion) < PROMPT_VERSION) {
 }
 let cloudUrl     = localStorage.getItem("cogos_cloud_url") || "";
 let cloudKey     = localStorage.getItem("cogos_cloud_key") || "";
-let isRecording  = false;
-let recognition  = null;
-let lastDateLabel = "";
+let isRecording        = false;
+let recognition        = null;
+let lastDateLabel      = "";
+let lastExtractMsgCount = parseInt(localStorage.getItem("cogos_extract_at") || "0");
+let autoExtractPending  = false;     // 防止重复触发
 
 // ==================== INDEXEDDB ====================
 const DB_NAME = "cog-os-db";
@@ -738,6 +781,13 @@ async function send() {
   }
   sendBtn.disabled = false;
   input.focus();
+
+  // 自动记忆提取：每积累 6 条新消息（3 轮对话）后静默提取
+  const newMsgCount = messages.length - lastExtractMsgCount;
+  if (newMsgCount >= 6 && !autoExtractPending) {
+    autoExtractPending = true;
+    setTimeout(() => autoExtractMemories(), 1500); // 延迟 1.5s 避免阻塞
+  }
 }
 
 function showThinking() {
@@ -906,6 +956,80 @@ function shakeElement(el) {
 }
 
 // ==================== MEMORY EXTRACTION ====================
+// 静默自动提取：不操作按钮、不弹系统消息、出错静默
+async function autoExtractMemories() {
+  if (!apiKey || messages.length < 2) { autoExtractPending = false; return; }
+
+  const recentMsgs = messages.slice(-20);
+  const existingSummary = memories.map(m => "["+m.type+"] "+m.content).join("\n");
+
+  const extractPrompt =
+    "你是 Brice 的记忆助手。从以下对话中提取 Brice 的关键信息，只提取对话中明确出现的新信息，不要重复已有内容。\n\n"+
+    "已有记忆：\n"+existingSummary+"\n\n"+
+    "对话记录：\n"+recentMsgs.map(m=>m.role+": "+m.content).join("\n")+"\n\n"+
+    '请输出 JSON 数组，每个元素格式：{"type":"fact|preference|project|principle|relationship","content":"...","tags":["..."],"importance":1-5}\n'+
+    "type 说明：fact=事实信息, preference=偏好/习惯, project=正在做的项目, principle=方法论原则(If...Then), relationship=人际关系\n"+
+    "importance: 1=琐碎 3=重要 5=核心身份信息\n"+
+    "如果没有新信息，输出空数组 []。只输出 JSON，不要解释。";
+
+  try {
+    const resp = await fetch("https://api.deepseek.com/v1/chat/completions", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+apiKey},
+      body:JSON.stringify({
+        model:"deepseek-chat",
+        messages:[{role:"system",content:"你是记忆提取器，只输出 JSON。"},{role:"user",content:extractPrompt}],
+        temperature:0.1, max_tokens:2048,
+      })
+    });
+    const data = await resp.json();
+    if (data.error) { autoExtractPending = false; return; }
+
+    const raw = data.choices[0].message.content.trim();
+    let jsonStr = raw;
+    const jsonMatch = raw.match(/\[[\s\S]*\]/);
+    if (jsonMatch) jsonStr = jsonMatch[0];
+
+    const extracted = JSON.parse(jsonStr);
+    if (!Array.isArray(extracted) || extracted.length===0) {
+      lastExtractMsgCount = messages.length;
+      localStorage.setItem("cogos_extract_at", String(lastExtractMsgCount));
+      autoExtractPending = false; return;
+    }
+
+    let added = 0;
+    for (const item of extracted) {
+      if (!item.content || !item.type) continue;
+      const exists = memories.some(m =>
+        m.content.includes(item.content) || item.content.includes(m.content)
+      );
+      if (exists) continue;
+
+      memories.push({
+        id: uid(),
+        type: item.type || "fact",
+        content: item.content,
+        tags: item.tags || [],
+        importance: item.importance || 3,
+        created: new Date().toISOString(),
+        updated: new Date().toISOString(),
+      });
+      added++;
+    }
+
+    if (added > 0) {
+      await saveMemoriesToDB(memories);
+      await syncToCloud();
+      showToast("🧠 自动记录 "+added+" 条新记忆", "success");
+    }
+    lastExtractMsgCount = messages.length;
+    localStorage.setItem("cogos_extract_at", String(lastExtractMsgCount));
+  } catch(e) {
+    // 静默失败：不影响用户对话
+  }
+  autoExtractPending = false;
+}
+
 async function extractMemories() {
   if (!apiKey) { showSettings(); return; }
   if (messages.length < 2) { addSystem("💡 先聊几句再提取记忆"); return; }
@@ -1051,6 +1175,122 @@ async function deleteMemory(id) {
   await saveMemoriesToDB(memories);
   await syncToCloud();
   renderMemoryList("all");
+}
+
+// ==================== SEARCH ====================
+let searchTimer = null;
+
+function showSearch() {
+  document.getElementById("searchModal").classList.add("show");
+  document.getElementById("searchInput").value = "";
+  document.getElementById("searchResults").innerHTML =
+    '<div class="search-empty">输入关键词搜索对话记录和记忆</div>';
+  setTimeout(() => document.getElementById("searchInput").focus(), 100);
+}
+
+function closeSearch() {
+  document.getElementById("searchModal").classList.remove("show");
+}
+
+function onSearchInput(query) {
+  clearTimeout(searchTimer);
+  if (!query.trim()) {
+    document.getElementById("searchResults").innerHTML =
+      '<div class="search-empty">输入关键词搜索对话记录和记忆</div>';
+    return;
+  }
+  searchTimer = setTimeout(() => doSearch(query.trim()), 250);
+}
+
+function doSearch(query) {
+  const lower = query.toLowerCase();
+  const results = document.getElementById("searchResults");
+  let html = "";
+
+  // 搜索对话记录
+  const chatHits = [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    const content = m.content || "";
+    const idx = content.toLowerCase().indexOf(lower);
+    if (idx >= 0) {
+      // 提取上下文片段（前后各 30 字）
+      const start = Math.max(0, idx - 30);
+      const end = Math.min(content.length, idx + lower.length + 30);
+      let snippet = content.slice(start, end);
+      if (start > 0) snippet = "..." + snippet;
+      if (end < content.length) snippet += "...";
+
+      // 高亮匹配词
+      const highlighted = snippet.replace(
+        new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"),
+        "<em>$&</em>"
+      );
+
+      chatHits.push({
+        role: m.role === "user" ? "你说" : "Brice",
+        text: highlighted,
+        time: m.time || "",
+        index: i,
+      });
+      if (chatHits.length >= 20) break;
+    }
+  }
+
+  if (chatHits.length > 0) {
+    html += '<div class="search-section"><div class="search-section-title">对话记录 ('+chatHits.length+' 条)</div>';
+    for (const hit of chatHits) {
+      html += '<div class="search-hit" onclick="closeSearch()">'+
+        '<div class="hit-header">'+
+          '<span class="hit-badge">'+escapeHtml(hit.role)+'</span>'+
+          '<span class="hit-time">'+escapeHtml(hit.time)+'</span>'+
+        '</div>'+
+        '<div class="hit-text">'+hit.text+'</div>'+
+      '</div>';
+    }
+    html += '</div>';
+  }
+
+  // 搜索记忆
+  const memHits = memories.filter(m =>
+    m.content.toLowerCase().includes(lower) ||
+    (m.tags && m.tags.some(t => t.toLowerCase().includes(lower)))
+  );
+
+  if (memHits.length > 0) {
+    const typeNames = { fact:"事实", preference:"偏好", project:"项目", principle:"方法论", relationship:"人际关系" };
+    html += '<div class="search-section"><div class="search-section-title">记忆库 ('+memHits.length+' 条)</div>';
+    for (const m of memHits) {
+      let snippet = m.content;
+      const idx = snippet.toLowerCase().indexOf(lower);
+      if (idx >= 0) {
+        const start = Math.max(0, idx - 20);
+        const end = Math.min(snippet.length, idx + lower.length + 20);
+        snippet = snippet.slice(start, end);
+        if (start > 0) snippet = "..." + snippet;
+        if (end < m.content.length) snippet += "...";
+        snippet = snippet.replace(
+          new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"),
+          "<em>$&</em>"
+        );
+      }
+      const tn = typeNames[m.type] || m.type;
+      html += '<div class="search-hit" style="cursor:default">'+
+        '<div class="hit-header">'+
+          '<span class="hit-badge type-'+m.type+'">'+tn+'</span>'+
+          '<span class="hit-time">⭐'.repeat(m.importance||1)+'</span>'+
+        '</div>'+
+        '<div class="hit-text">'+snippet+'</div>'+
+      '</div>';
+    }
+    html += '</div>';
+  }
+
+  if (!chatHits.length && !memHits.length) {
+    html = '<div class="search-empty">没有找到相关内容<br>试试其他关键词</div>';
+  }
+
+  results.innerHTML = html;
 }
 
 // ==================== CLOUD SYNC ====================
