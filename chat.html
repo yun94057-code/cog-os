@@ -113,6 +113,13 @@ header {
 
 .msg .time { font-size:10px; margin-top:4px; display:block; }
 
+/* Inline formatting */
+.msg p { margin:0; }
+.msg p + p { margin-top:10px; }
+.msg p.spacer { margin-top:14px; }
+.msg strong { color:#1e293b; font-weight:600; }
+.msg .list-dot { display:inline-block; width:14px; color:var(--accent); font-weight:700; margin-right:2px; }
+
 /* Reasoning */
 .msg.reasoning-block {
   margin-top:4px; padding:10px 14px;
@@ -523,6 +530,23 @@ function uid() { return Date.now().toString(36)+Math.random().toString(36).slice
 function escapeHtml(s) {
   const div = document.createElement("div"); div.textContent = s; return div.innerHTML;
 }
+// 将纯文本转为带段落/换行的 HTML（安全转义 → 段落 → 换行 → 粗体 → 列表）
+function formatContent(text) {
+  let html = escapeHtml(text);
+  // 段落：连续空行 → </p><p>
+  html = '<p>'+html.split(/\n\n+/).join('</p><p>')+'</p>';
+  // 单换行 → <br>
+  html = html.replace(/\n/g, '<br>');
+  // 空段落清理
+  html = html.replace(/<p>\s*<br>\s*<\/p>/g, '<p><br></p>');
+  // 连续空段落合并
+  html = html.replace(/<p><br><\/p>/g, '<p class="spacer"></p>');
+  // **粗体** → <strong>
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // - 列表项识别（行首的 - 或 •）
+  html = html.replace(/<br>[-•] /g, '<br><span class="list-dot">•</span> ');
+  return html;
+}
 
 function maybeDateDivider() {
   const today = dateLabel();
@@ -550,7 +574,7 @@ function loadChat() {
     for (const m of messages) {
       maybeDateDivider();
       const role = m.role==="user"?"user":"ai";
-      let html = typeof m.content==="string"?escapeHtml(m.content):"";
+      let html = typeof m.content==="string"?formatContent(m.content):"";
       if (m.reasoning) html = buildReasoningBlock(m.reasoning)+html;
       appendMsgBubble(role, html, m.time||"");
     }
@@ -580,13 +604,13 @@ function appendMsgBubble(role, html, timeStr) {
 
 function addMsg(role, text, timeStr) {
   maybeDateDivider();
-  appendMsgBubble(role, escapeHtml(text), timeStr);
+  appendMsgBubble(role, formatContent(text), timeStr);
   chat.scrollTop = chat.scrollHeight;
 }
 
 function addSystem(text) {
   const div = document.createElement("div");
-  div.className = "msg system"; div.textContent = text;
+  div.className = "msg system"; div.innerHTML = formatContent(text);
   chat.appendChild(div); chat.scrollTop = chat.scrollHeight;
 }
 
@@ -665,7 +689,7 @@ async function send() {
       maybeDateDivider();
       let html = "";
       if (reason) html += buildReasoningBlock(reason);
-      html += escapeHtml(reply);
+      html += formatContent(reply);
       appendMsgBubble("ai", html, replyTs);
       chat.scrollTop = chat.scrollHeight;
 
